@@ -1,12 +1,13 @@
 /**
- * Ramp logo — a minimalist filled wedge suggesting incline / "ramp up".
+ * Ramp logo — filled wedge with a subtly curved hypotenuse.
  *
- * The mark is a right triangle hugging the bottom-left of a 24×24 viewbox:
- * flat base + vertical left edge + diagonal hypotenuse rising to upper-right.
- * Reads as the literal silhouette of a ramp.
+ * The shape is a right triangle hugging the bottom-right of a 24x24 viewbox:
+ *   - flat base along the bottom
+ *   - vertical edge along the right
+ *   - the diagonal hypotenuse is replaced with a quadratic-bezier curve
+ *     that sags gently into the wedge (control point at 14,14)
  *
- * Pairs with the `Wordmark` for nav and login. Use `<Logo />` alone for
- * favicons or compact marks; `<Wordmark />` for the full nav header.
+ * Reads as a smooth-onramp silhouette — minimal, geometric, no chrome.
  */
 
 import { cn } from "@/lib/utils"
@@ -20,8 +21,7 @@ export function Logo({ className }: { className?: string }) {
       className={cn("h-6 w-6", className)}
       aria-hidden
     >
-      {/* Filled wedge / ramp */}
-      <path d="M3 21 L21 21 L3 3 Z" fill="currentColor" />
+      <path d="M3 21 L21 21 L21 3 Q14 14 3 21 Z" fill="currentColor" />
     </svg>
   )
 }
