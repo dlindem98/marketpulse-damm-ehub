@@ -1,11 +1,10 @@
 /**
  * Promo library — historical ROI by promo type.
- * Dub-admin composition: bg-neutral-50 page, h2 + neutral-500 sub, flat
- * white-card table.
  */
 
 import { Suspense } from "react"
-import { MaxWidthWrapper } from "@/components/shell/MaxWidthWrapper"
+import { PageContent } from "@/components/shell/PageContent"
+import { PageWidthWrapper } from "@/components/shell/PageWidthWrapper"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { serverFetch } from "@/lib/api"
@@ -16,25 +15,24 @@ type PromoROI = components["schemas"]["PromoROI"]
 
 export default function Page() {
   return (
-    <MaxWidthWrapper className="py-10">
-      <header className="mb-6 max-w-2xl">
-        <h2 className="text-xl font-semibold text-neutral-900">Promo library</h2>
-        <p className="mt-1 text-sm text-neutral-500">
+    <PageContent title="Promo library">
+      <PageWidthWrapper className="pb-10">
+        <p className="text-sm text-neutral-500 mb-6 max-w-2xl">
           Historical lift estimated by diff-in-diff against prior-12-month same-month baseline. GROCERY only.
           Negative-lift rows are shown honestly — they happened, and you should know.
         </p>
-      </header>
 
-      <Suspense
-        fallback={
-          <div className="rounded-lg border border-neutral-200 bg-white p-4 space-y-2">
-            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
-          </div>
-        }
-      >
-        <PromoTable />
-      </Suspense>
-    </MaxWidthWrapper>
+        <Suspense
+          fallback={
+            <div className="rounded-xl border border-neutral-200 bg-white p-4 space-y-2">
+              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
+            </div>
+          }
+        >
+          <PromoTable />
+        </Suspense>
+      </PageWidthWrapper>
+    </PageContent>
   )
 }
 
@@ -42,7 +40,7 @@ async function PromoTable() {
   const roi = await serverFetch<PromoROI[]>("/api/promos/roi")
 
   return (
-    <div className="rounded-lg border border-neutral-200 bg-white overflow-hidden">
+    <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
       <div className="px-4 py-2.5 border-b border-neutral-200 flex items-center justify-between">
         <div className="text-[12.5px] font-medium text-neutral-900">{roi.length} promo types analysed</div>
         <div className="text-[11px] text-neutral-500">ROI = (lift × revenue per Hl) ÷ estimated cost</div>

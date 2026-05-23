@@ -1,17 +1,16 @@
 /**
- * Triage Inbox — the home base for a UK Commercial Manager.
+ * Triage Inbox — home base for a UK Commercial Manager.
  *
- * Dub-admin composition:
- *   - bg-neutral-50 page (set by the (app) layout)
- *   - MaxWidthWrapper centers content
- *   - h2 page title + neutral-500 description
- *   - Stacked sections; rows on bg-white cards with neutral-200 borders
+ * Wrapped in <PageContent title="Inbox">; that gives us Dub-consumer's
+ * sticky title bar + bordered content area. Inside, sections stack
+ * vertically with PageWidthWrapper'd content.
  */
 
 import Link from "next/link"
 import { Suspense } from "react"
 import { ArrowRight, AlertTriangle, TrendingDown, TrendingUp } from "lucide-react"
-import { MaxWidthWrapper } from "@/components/shell/MaxWidthWrapper"
+import { PageContent } from "@/components/shell/PageContent"
+import { PageWidthWrapper } from "@/components/shell/PageWidthWrapper"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { serverFetch } from "@/lib/api"
@@ -24,18 +23,19 @@ type Meta = components["schemas"]["MetaResponse"]
 
 export default function Page() {
   return (
-    <MaxWidthWrapper className="py-10">
-      <header className="mb-8 max-w-2xl">
-        <h2 className="text-xl font-semibold text-neutral-900">This week&apos;s decisions</h2>
-        <p className="mt-1 text-sm text-neutral-500">
-          UK SKUs ranked by gap to target. Open a row to diagnose, choose an action, and simulate it.
-        </p>
-      </header>
+    <PageContent title="Inbox">
+      <PageWidthWrapper className="pb-10">
+        <div className="mb-6 max-w-2xl">
+          <p className="text-sm text-neutral-500">
+            UK SKUs ranked by gap to target. Open a row to diagnose, choose an action, and simulate it.
+          </p>
+        </div>
 
-      <Suspense fallback={<InboxSkeleton />}>
-        <Inbox />
-      </Suspense>
-    </MaxWidthWrapper>
+        <Suspense fallback={<InboxSkeleton />}>
+          <Inbox />
+        </Suspense>
+      </PageWidthWrapper>
+    </PageContent>
   )
 }
 
@@ -115,7 +115,7 @@ function Section({
         <h3 className="text-[15px] font-semibold text-neutral-900">{title}</h3>
         <div className="text-[11.5px] text-neutral-500">{subtitle}</div>
       </div>
-      <div className="rounded-lg border border-neutral-200 bg-white overflow-hidden">{children}</div>
+      <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">{children}</div>
     </section>
   )
 }
@@ -180,7 +180,7 @@ function SummaryTile({
   const color =
     tone === "negative" ? "var(--negative)" : tone === "positive" ? "var(--positive)" : "#171717"
   return (
-    <div className="rounded-lg border border-neutral-200 bg-white px-4 py-3">
+    <div className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
       <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-neutral-500 font-medium">
         {icon}
         {label}
@@ -203,7 +203,7 @@ function InboxSkeleton() {
       </div>
       <div className="mt-8">
         <Skeleton className="h-5 w-32 mb-3" />
-        <div className="rounded-lg border border-neutral-200 bg-white overflow-hidden">
+        <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="px-4 py-3 border-b border-neutral-200 last:border-0">
               <Skeleton className="h-10 w-full" />
