@@ -13,6 +13,15 @@ const nextConfig: NextConfig = {
   // typedRoutes intentionally off: we build many href strings dynamically
   // (decision/[sku]/[channel]?period=&tab=) and casting at every site
   // doesn't add real safety, just noise.
+
+  // Allow next/image to optimize the hackathon sponsor logos served from
+  // dammxeh.com's own CDN (we hot-link them rather than copy the files).
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "www.dammxeh.com", pathname: "/assets/**" },
+      { protocol: "https", hostname: "dammxeh.com", pathname: "/assets/**" },
+    ],
+  },
 }
 
 export default nextConfig
