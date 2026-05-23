@@ -1,8 +1,18 @@
-# 24h Execution Plan — MarketPulse UK
+# Execution Plan — MarketPulse UK
+
+## ✅ Status: Phases 0–3 complete (functional end-to-end)
+
+| Phase | Status | Notes |
+|---|---|---|
+| 0 — Scaffolding | ✅ done | backend + frontend bootstrapped, all deps installed, `make doctor` green |
+| 1 — ETL | ✅ done | 4,244 monthly rows + 7 external columns (NASA POWER, Google Trends, ONS); 1,935 classified promo cells |
+| 2 — ML pipeline | ✅ done | `make train` runs all 11 steps in ~29s; 1,068 forecast rows; hierarchy invariants verified |
+| 3 — Frontend | ✅ done | 7 pages live: Overview (with Sankey hero), Forecast, Drivers, Promos, Simulator, Recommendations, Chat |
+| 4 — Polish & rehearsal | ⏳ next | demo narrative, backup video, fresh-clone validation |
 
 ## 🧭 Guiding principle
 
-> **At hour 12 we must have an ugly-but-complete pipeline end-to-end.** Data → forecast → gap → one recommendation → one rendered React page reading from FastAPI. Then H12–24 we polish each layer.
+> **The product is a decision-support assistant, not a dashboard.** Every page maps to one of three questions: *where is the gap*, *why is it there*, *what do we do about it*.
 >
 > End-to-end ugly > beautiful but incomplete. Always.
 

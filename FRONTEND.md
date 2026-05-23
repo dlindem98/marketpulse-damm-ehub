@@ -1,10 +1,42 @@
-# Frontend — React build guide
+# Frontend — what was actually built
 
-> Goal: a Linear/Vercel-quality dashboard that ships in **~10 hours**. The visuals must reinforce credibility; the **content** (forecast, gap, drivers, simulator, recs) is still where we win.
+> **Status: ✅ all 7 pages live**, multi-page router shell with persistent sidebar, real data through every page.
 >
-> **License note:** the repo is public, so every UI lib below is MIT (or equivalent) and safe to redistribute.
+> Aesthetic: flat, calm, data-first. Dark theme + Damm-red accent. No 3D / parallax / WebGL. Motion is reserved for KPI counters and the Magic UI `BorderBeam` on the "recommended" scenario card.
 >
-> **Aesthetic rule:** flat, calm, data-first. **No 3D tilt, no parallax, no carousels, no animated WebGL backgrounds.** Motion is reserved for KPI counters and subtle hover states.
+> **License note:** every UI lib is MIT (or equivalent) and safe for the public repo.
+
+## UX rationale — why this product is what it is
+
+The brief asks for a tool that **forecasts**, **detects deviations**, and **recommends commercial actions**. Most teams will build a dashboard. We build a **decision-support assistant**.
+
+**Three layers, always in this order:**
+
+```
+LAYER 1 — ANSWER       "Estrella in off-trade grocery is +15% above target across the quarter."
+LAYER 2 — EVIDENCE     forecast curve · confidence band · SHAP drivers · anomaly markers
+LAYER 3 — OPTIONS      3 scenario cards · simulator with live re-prediction
+```
+
+Every page maps to one of three questions, surfaced in the sidebar as one-line hints:
+
+| Page | Question |
+|---|---|
+| `/` Overview | Where's the gap? |
+| `/forecast` | What does the model predict? |
+| `/drivers` | Why is the gap there? |
+| `/promos` | What's worked before? |
+| `/simulator` | What if we change things? |
+| `/recommendations` | What should we do? |
+| `/chat` | Conversational deep-dive |
+
+**The hero visual: a budget Sankey.** Not yet-another-KPI-dashboard. The Sankey shows UK Total → SalesChannel → SubChannel → top-4 brands in one frame; flow width = forecast Hl, node color = forecast-vs-target gap on a diverging red→green scale. A commercial director sees the leak in two seconds. Clicking a node drills to that branch.
+
+**Why we picked Sankey over treemap:** Sankey shows flow + hierarchy explicitly (matching how directors think about their book). Treemap shows volume well but hides the hierarchy. Sankey is also genuinely uncommon in CPG dashboards — a real visual differentiator. See [DECISIONS.md D-017](DECISIONS.md).
+
+**Label translation everywhere.** Raw codes (`EX23SRAN`, `GROCERY`, `Nov.26`) never appear on screen for end users. The backend's `meta.json` carries human labels (`Estrella Damm · 660ml nr bottle`, `Off-trade grocery`, `November 2026`); the frontend's `format.ts` handles client-side rendering (Hl, percent, GBP). See [DECISIONS.md D-016](DECISIONS.md).
+
+**LLM narrative on top of every key visualization.** Charts are evidence; the LLM-generated sentence on top of them is the answer. A director scrolling on mobile gets the headline without having to interpret a Sankey.
 
 ---
 

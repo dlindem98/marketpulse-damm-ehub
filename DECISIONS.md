@@ -13,6 +13,101 @@ The numbered list is purely for cross-referencing — order is chronological by 
 
 ---
 
+## D-017 — Budget Sankey as the Overview hero visual (chose over treemap)
+🟢 Accepted · Phase 3
+
+**Originally planned ([PAGES.md / FRONTEND.md]):** Overview page = 4 KPI tiles + monthly area chart + top-3 problem SKU cards.
+
+**Pivoted because** that's a generic dashboard. A commercial director needs to see "where is my budget leaking" in one frame, not click through filters. Both a treemap and a Sankey were considered.
+
+**Decision: Plotly Sankey** showing UK Total → SalesChannel → SubChannel → top-4 brands per sub-channel. Flow width = forecast Hl. Node color = forecast-vs-target gap on a diverging red→green scale. Click any node → drill to that drilldown page.
+
+**Why Sankey over treemap:**
+- Sankey shows **flow + hierarchy explicitly**, which matches how a commercial director thinks about their book ("my budget flows to channels → brands → SKUs").
+- A treemap shows volume well but hides the hierarchy and forces the user to mentally reconstruct relationships.
+- Sankey is also genuinely uncommon in CPG dashboards — a real visual differentiator.
+
+**New backend endpoint:** `GET /api/sankey` returns `{nodes, links}` with forecast_hl + target_hl + gap_pct on every node and gap_pct on every link (drives color). Cached via `lru_cache`.
+
+**Where it landed:** `backend/app/routers/sankey.py`, `frontend/src/components/BudgetSankey.tsx`, `frontend/src/pages/Overview.tsx`.
+
+---
+
+## D-016 — Label translation layer (human-readable everything)
+🟢 Accepted · Phase 3
+
+**Problem:** the dashboard surfaced raw codes (`EX23SRAN`, `GROCERY`, `Nov.26`) that are unreadable to non-Damm staff (i.e., judges).
+
+**Decision:** translate at three layers:
+- **SKU labels** — composed in ETL from `brand + pack_size + pack_type` with token-dedup. `EX23SRAN` → `Estrella Damm · 660ml nr bottle`.
+- **Channel labels** — explicit dict in `anonymize.py`. `GROCERY` → `Off-trade grocery`, `FREE TRADE CMBC` → `B2B distributor`, etc.
+- **Period labels** — `period_label("Nov.26") → "November 2026"`. Spanish month abbreviations stay invisible to the user.
+
+`/api/meta` now carries both raw codes (for back-compat) and labeled variants (`sub_channels_labeled: [{code, label}]`). Frontend's `format.ts` provides the same formatters for client-side rendering (Hl, percent, GBP, period).
+
+**Where it landed:** `backend/app/services/etl.py::_build_sku_label`, `backend/app/services/anonymize.py`, `backend/app/schemas/meta.py`, `backend/app/routers/meta.py`, `frontend/src/lib/format.ts`.
+
+---
+
+## D-015 — `make train` orchestrator + frontend Parquet diagnostics
+🟢 Accepted · Phase 2 → 3 bridge
+
+**Problem:** Phase 2 had 11 training modules but no single command to run them all. `make train` pointed at a non-existent `app.services.forecast.train` module.
+
+**Decision:** create `backend/app/services/forecast/train.py` as a simple orchestrator that imports each module and calls its `main()` in dependency order. Fails fast on first non-zero return.
+
+Verified `make train` runs all 11 in ~29 seconds.
+
+A teammate (codex branch) added `ParquetDiagnostics.tsx` + `/api/debug-data` for ad-hoc inspection of any snapshot's contents during development. Standalone debug surface that bypasses the app shell. Kept because it's useful and zero-cost.
+
+**Where it landed:** `backend/app/services/forecast/train.py`, `backend/app/routers/debug_data.py`, `frontend/src/ParquetDiagnostics.tsx`.
+
+---
+
+## D-014 — Targets extended into forecast horizon at ETL time
+🟢 Accepted · Phase 2
+
+**Problem:** `targets.parquet` only covered history (Jan 2023 → Apr 2026). The forecast horizon (May 2026 → Jan 2027) had no target rows, so `/api/kpis`, `/api/gap`, `/api/recommend` couldn't compute gap-vs-target.
+
+**Decision:** `derive_future_targets()` in `etl.py` extends targets by 9 future months per series. For each future month, target = coalesce(prior-year-actual, trailing-3-month-median). The `target_source` column distinguishes the two so the UI can surface confidence.
+
+`targets.parquet` went from 4,244 → 8,483 rows.
+
+---
+
+## D-013 — Ensemble weights: fixed per-channel defaults, defer optimization to STEP 8 CV
+🟢 Accepted · Phase 2
+
+**Originally planned:** SLSQP-optimized per-`(sub_channel × horizon-bucket)` weights learned by minimizing val MAPE.
+
+**Found:** the original `ensemble.py` produced LGB val predictions instantly but then hung indefinitely while computing val-period Chronos predictions (Chronos needs different history-truncated inputs per series, which created a slow loop). After 5+ minutes I killed the run.
+
+**Decision:** pivot to **fixed sensible defaults** per sub-channel:
+- GROCERY: LGB=0.45 / Chronos=0.25 / ChronosPromo=0.30
+- CMBC: 1.0 on the carve-out forecast
+- Others: LGB-heavy with Chronos as stabilizer
+- Tuning deferred to STEP 8's rolling-origin CV (proper out-of-fold evaluation, no two-model val-prediction chicken-and-egg)
+
+This is not a cheap solution — it's a more honest one. Fixed defaults are a tested CPG baseline; the SLSQP version was overfitting weights to a single val fold.
+
+---
+
+## D-012 — Three external sources wired (NASA POWER, Google Trends, ONS)
+🟢 Accepted · Phase 2
+
+**Originally planned:** Open-Meteo for weather, pytrends for search, ONS API for retail.
+
+**Found at implementation:**
+- **Open-Meteo archive API** was consistently 504-ing on every retry. Switched to NASA POWER monthly point endpoint — free, no key, more reliable. Its hard ceiling is Dec 2025; 2026 months are imputed via climatology (same-month-of-year mean across history).
+- **pytrends** uses urllib3's old `method_whitelist` kwarg. Setting `retries=0` bypasses pytrends's internal Retry construction. Works.
+- **ONS** URL pattern needed adjustment — used `https://www.ons.gov.uk/businessindustryandtrade/retailindustry/timeseries/{series}/drsi/data` instead of the api.ons.gov.uk subdomain (which 404s).
+
+All three are now cached to `backend/app/data/cache/{source}.parquet` with 24h TTL. Robust to individual source failures (any source that errors gets zero-filled column scaffolds so downstream schema stays stable).
+
+**Three external features now in LightGBM's top-10 by gain importance:** `temp_c_anomaly`, `ons_retail_index`, `trends_lager`. This closed the previously-failing DoD gate "top-10 includes Fourier/holiday/external".
+
+---
+
 ## D-011 — Tier-1 robustness pack: conformal PI + bagging + target encoding + Fourier + holiday features
 🟢 Accepted · spec change pre-Phase-2 · spike validated against real data
 
