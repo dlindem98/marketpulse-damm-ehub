@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import (
     chat,
+    debug_data,
     drivers,
     explain_view,
     forecast,
@@ -59,6 +60,7 @@ app.include_router(promos.router)
 app.include_router(recommend.router)
 app.include_router(chat.router)
 app.include_router(explain_view.router)
+app.include_router(debug_data.router)
 
 
 @app.get("/", include_in_schema=False)

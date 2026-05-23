@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { NumberTicker } from "@/components/ui/number-ticker"
 import { BorderBeam } from "@/components/ui/border-beam"
+import ParquetDiagnostics from "./ParquetDiagnostics"
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000 } },
@@ -106,6 +107,14 @@ function Overview() {
 }
 
 export default function App() {
+  if (window.location.pathname === "/diagnostics/parquet") {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <ParquetDiagnostics />
+      </QueryClientProvider>
+    )
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen">
@@ -114,7 +123,10 @@ export default function App() {
             <span className="text-lg font-semibold tracking-tight">MarketPulse UK</span>
             <span className="text-xs text-muted-foreground">Damm × Engineering Hub</span>
           </div>
-          <a href="http://localhost:8000/docs" target="_blank" className="text-xs text-muted-foreground hover:text-foreground transition">/docs</a>
+          <div className="flex items-center gap-4">
+            <a href="/diagnostics/parquet" className="text-xs text-muted-foreground hover:text-foreground transition">Parquet diagnostics</a>
+            <a href="http://localhost:8000/docs" target="_blank" className="text-xs text-muted-foreground hover:text-foreground transition">/docs</a>
+          </div>
         </header>
 
         <main className="px-8 py-6 max-w-7xl mx-auto">
