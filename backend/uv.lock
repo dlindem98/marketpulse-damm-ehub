@@ -148,6 +148,23 @@ wheels = [
 ]
 
 [[package]]
+name = "category-encoders"
+version = "2.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "patsy" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+    { name = "statsmodels" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/29/59/1184ce74dca0c3e3450bccbb16edfce56f559c76dc794e2d52e1e63b467d/category_encoders-2.9.0.tar.gz", hash = "sha256:659311786e909013b8e8715fd1271244789a1dea278da44058828f88eeab5b40", size = 58005, upload-time = "2025-11-02T18:13:36.929Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a6/06/afcae4dab08612dac244ace7f478543f4fb83bea94177231ef9b4f7bfa06/category_encoders-2.9.0-py3-none-any.whl", hash = "sha256:49c0e49cd3bd93b21c0bcc928ecbe9b3d09951a6f7fff8cc67f1f33967887227", size = 85859, upload-time = "2025-11-02T18:13:35.388Z" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.5.20"
 source = { registry = "https://pypi.org/simple" }
@@ -971,6 +988,7 @@ name = "marketpulse-backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "category-encoders" },
     { name = "duckdb" },
     { name = "fastapi" },
     { name = "fastexcel" },
@@ -1002,6 +1020,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "category-encoders", specifier = ">=2.9.0" },
     { name = "duckdb", specifier = ">=1.5.3" },
     { name = "fastapi", specifier = ">=0.136.1" },
     { name = "fastexcel", specifier = ">=0.20.2" },

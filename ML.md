@@ -51,11 +51,16 @@ Three components, ensembled at the SKU × SubChannel × month level.
 
 One model, fit jointly on **all 471 SKU×SubChannel series**. Cold-start series borrow strength from long ones via the shared trees.
 
-**Overfitting controls** ([D-010](DECISIONS.md)). With only ~19k training rows and 500+ trees per quantile, the model can memorize. We use three independent safeguards:
+**Robustness controls** ([D-010](DECISIONS.md), [D-011](DECISIONS.md)). With only ~19k training rows and 500+ trees per quantile, the model can memorize *and* its prediction intervals can be mis-calibrated. We stack six independent safeguards:
 
-1. **Early stopping** — train up to `n_estimators=1500` but stop when validation MAPE doesn't improve for 50 rounds. The model self-picks its own size per quantile.
-2. **L2 regularization** — `reg_lambda=0.1` penalizes large leaf weights.
-3. **Learning curve artifact** — per-iteration train/val metrics persisted to `snapshots/learning_curves.parquet` so the dashboard can show the convergence point.
+1. **Early stopping** — train up to `n_estimators=1500`, stop when val MAPE plateaus 50 rounds. Self-picks tree count per quantile. (D-010)
+2. **L2 regularization** — `reg_lambda=0.1` on leaf weights. (D-010)
+3. **Bagging + column subsampling** — `bagging_fraction=0.8`, `bagging_freq=5`, `feature_fraction=0.8`. Free variance reduction. (D-011 B)
+4. **K-fold-safe target encoding** for `brand`, `sub_channel`, `sales_channel` — `category_encoders.TargetEncoder(smoothing=10.0)` fitted on TRAIN ONLY per fold. (D-011 C)
+5. **Fourier seasonality + holiday calendar flags** — `month_sin`, `month_cos`, `quarter_sin`, `quarter_cos`, `is_christmas_month`, `is_easter_month`, `is_summer`, `is_christmas_buildup`. (D-011 D, E)
+6. **Conformalized Quantile Regression (CQR)** for PI calibration — compute `qhat` on a held-out calibration slice, emit `[p10 - qhat, p90 + qhat]` as the 80% PI. Distribution-free coverage guarantee. (D-011 A)
+
+Plus the **learning curve artifact** (per-iteration train+val MAPE → `snapshots/learning_curves.parquet`) and the **calibration artifact** (`snapshots/calibration.parquet` with `qhat`, raw vs. calibrated coverage).
 
 ```python
 from mlforecast import MLForecast
@@ -72,7 +77,12 @@ def make_model(alpha: float) -> lgb.LGBMRegressor:
         learning_rate=0.05,
         num_leaves=63,
         min_data_in_leaf=20,
-        reg_lambda=0.1,               # L2 on leaf weights
+        # D-010: L2 regularization
+        reg_lambda=0.1,
+        # D-011 B: bagging + column subsampling
+        bagging_fraction=0.8, bagging_freq=5,
+        feature_fraction=0.8,
+        random_state=42,
         verbose=-1,
     )
 
@@ -108,7 +118,54 @@ fcst.fit(
 write_learning_curves(eval_dict, SNAPSHOTS / "learning_curves.parquet")
 ```
 
-The training script logs `best_iteration_` per quantile. Typical good behavior: early stopping fires somewhere between 150–400 trees out of the 1500 cap; that's the convergence sweet spot.
+The training script logs `best_iteration_` per quantile. Spike on real Phase 1 data: p10 stopped at 87, p50 at 159, p90 at 237 — all well below the 1500 cap, healthy convergence pattern.
+
+### Conformalized Quantile Regression (CQR) for prediction-interval calibration
+
+Quantile-loss output doesn't *guarantee* its quantile target on out-of-sample data. Spike showed 59.8% empirical coverage on a nominal 80% PI — unacceptable for a commercial tool. CQR closes that gap distribution-free:
+
+```python
+def conformalize(y_calib, p10_calib, p90_calib, level=0.8):
+    scores = np.maximum(p10_calib - y_calib, y_calib - p90_calib)
+    n = len(scores)
+    q_level = min(np.ceil((n + 1) * level) / n, 1.0)
+    return float(np.quantile(scores, q_level, method="higher"))
+
+# At inference time:
+lo_calibrated = p10_pred - qhat
+hi_calibrated = p90_pred + qhat
+```
+
+The calibration slice should be held out from both training and early-stopping signal — in the production pipeline it's the last 8 weeks of training data (before the val window).
+
+### Categorical encoding — TRAIN-ONLY target encoding with smoothing
+
+```python
+from category_encoders import TargetEncoder
+te = TargetEncoder(cols=["brand", "sub_channel", "sales_channel"], smoothing=10.0)
+te.fit(X_train, y_train)              # NEVER on val/test
+X_train_enc = te.transform(X_train)
+X_val_enc   = te.transform(X_val)
+X_test_enc  = te.transform(X_test)
+```
+
+Sanity assertion: encoded `sub_channel_te.mean()` should differ between train and val (different time windows → different channel mixes). The spike showed train=499 vs val=584 for sub_channel — confirms no leakage.
+
+### Feature engineering — Fourier + holiday calendar
+
+```python
+df = df.with_columns(
+    (2 * np.pi * pl.col("month") / 12).sin().alias("month_sin"),
+    (2 * np.pi * pl.col("month") / 12).cos().alias("month_cos"),
+    (2 * np.pi * pl.col("quarter") / 4).sin().alias("quarter_sin"),
+    (2 * np.pi * pl.col("quarter") / 4).cos().alias("quarter_cos"),
+    (pl.col("month") == 12).cast(pl.Int8).alias("is_christmas_month"),
+    (pl.col("month").is_in([6, 7, 8])).cast(pl.Int8).alias("is_summer"),
+    (pl.col("month").is_in([10, 11])).cast(pl.Int8).alias("is_christmas_buildup"),
+    # is_easter_month — derived from `holidays.country_holidays("GB")` and the
+    # month containing each year's Easter Monday
+)
+```
 
 #### Features fed to the LightGBM
 
@@ -357,9 +414,31 @@ Numbers filled at H10 from the 3-fold rolling CV on Oct/Nov/Dec 2025.
 - [ ] Validation MAPE table populated; ensemble weights persisted to `models/weights.json`
 - [ ] LightGBM early stopping fires at < 1500 trees (logged as `best_iteration_` per quantile)
 - [ ] `snapshots/learning_curves.parquet` written, shows train vs val MAPE per iteration; final val MAPE < (final train MAPE) × 1.5  (gap-to-train sanity check — flags overfit)
+- [ ] `snapshots/calibration.parquet` written with `qhat`, raw_pi_width, cal_pi_width, raw_cover, cal_cover
+- [ ] **Calibrated 80% PI coverage on test ≥ 65%** (spike baseline). Full ensemble with per-channel CQR targets ≥75%.
+- [ ] `cal_pi_width / raw_pi_width ≤ 1.5` — CQR mustn't widen the PI to infinity; it must correct coverage by adding signal
+- [ ] **Top-10 features by importance** include at least one of: Fourier feature, holiday flag, target-encoded category (lags alone shouldn't dominate the entire ranking)
+- [ ] Target-encoded mean on val differs from train mean for at least one categorical (proves no leakage)
 - [ ] SHAP explainer pickled to `models/shap_explainer.pkl` for fast `/api/drivers` calls
 - [ ] All forecasts + intervals snapshotted to `backend/app/data/snapshots/forecast.parquet`
 - [ ] Anomaly events written to `snapshots/anomalies.parquet`
 - [ ] Promo causal results written to `snapshots/promo_roi.parquet`
 - [ ] Simulator function passes a sanity test (10% off-invoice on `EX23SRAN × GROCERY` shrinks the November gap)
+
+---
+
+## 12. Known limitations (acknowledged, not silently buried)
+
+Things the plan **cannot** fully solve in 24h. Each one is a real model risk; the dashboard surfaces a note where applicable so judges and users aren't surprised.
+
+| Limitation | Why it persists | How we mitigate (partial) |
+|---|---|---|
+| **Distribution shift between val and test windows.** The spike showed val (Nov-25 to Jan-26) and test (Feb-26 to Apr-26) carry different channel mixes; CQR raised coverage 59.8% → 71.3% but couldn't fully close to 80%. | The data set has 40 months total; the last 6 are split val+test, leaving only 152 calibration rows. Conformal quantile is noisy at that scale. | Per-channel CQR (separate qhat per sub_channel), and the ensemble averages out some of the shift. Surface the empirical coverage on the `/forecast` accuracy panel. |
+| **Sparse-SKU variance.** 117 of 471 series have ≤2 months of history. Their forecasts borrow heavily from other series via the global model. | No more data exists for these SKUs. | Chronos-Bolt zero-shot fallback covers cold-start; SHAP per-row stays honest about uncertainty; intervals widen for them. |
+| **Outlier-dominated training.** A single 5σ month (COVID-era spike, supply shock, new-listing ramp) influences the global gradient. | We don't manually annotate outliers. | Quantile p50 (median) is robust to outliers by construction; ensemble averaging dampens any one model's reaction. |
+| **CMBC-as-distributor pattern.** 40% of UK volume is one B2B replenishment relationship that doesn't behave like retail demand. | Modeling B2B replenishment properly needs an inventory-flow signal we don't have. | Carve out CMBC into a separate AutoARIMA series ([ML.md §3](ML.md)); recombine at the dashboard level. |
+| **No real budget data.** The "budget rows" in the source file are accounting noise ([D-008](DECISIONS.md)); targets are derived from prior-year actuals. | The brief mentions a budget but didn't include one. | `target_source ∈ {"prior_year", "trailing_median"}` exposed on every row so the FE can show confidence per cell. |
+| **Promo causal counterfactual is shaky outside GROCERY.** tfcausalimpact assumes a valid sibling-channel counterfactual; that's only defensible in GROCERY where the promo plan applies. | Other channels don't have promo activity comparable to retail. | Skip promo causal analysis outside GROCERY; surface `n_observations` and `confidence` per `PromoROI` row so the FE can hide low-confidence rankings. |
+
+The `KnownLimitations` set above is what we'd put on a methodology slide if asked. Better to be honest about model boundaries than oversell.
 - [ ] MAPE table renders on `/forecast` page

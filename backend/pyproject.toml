@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "MarketPulse UK — Damm × Engineering Hub hackathon backend"
 requires-python = ">=3.11,<3.13"
 dependencies = [
+    "category-encoders>=2.9.0",
     "duckdb>=1.5.3",
     "fastapi>=0.136.1",
     "fastexcel>=0.20.2",
