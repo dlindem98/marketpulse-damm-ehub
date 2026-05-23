@@ -1,291 +1,188 @@
-# Frontend — Dub.co-style analytics dashboard
+# Frontend — MarketPulse UK (Next.js 16 + App Router)
 
-> **Status: ✅ all 7 pages live**, multi-page router shell with persistent sidebar.
-> **UI pattern: Dub.co's analytics page** ([app.dub.co](https://app.dub.co)). Sticky filter bar → KPI tiles → main chart → breakdown tables. See [DECISIONS.md D-018](DECISIONS.md) for the pivot rationale.
+> **Status:** ✅ Triage inbox + unified decision flow + promo library + chat. Four routes, one persona.
+>
+> **Persona:** UK Commercial / Trade Marketing Manager. Daily job: prep grocer / pubco calls.
+>
+> **Stack pivot:** see [DECISIONS.md D-019](DECISIONS.md) for the full rationale. tl;dr — Vite SPA replaced by Next.js 16 RSC; 7-page IA collapsed to 4 task-shaped routes; entry point switched from a dashboard to a triage inbox.
 
-## The Dub pattern, applied to our domain
-
-Every page that shows aggregated data follows the same composition:
+## Information architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│ PAGE TITLE + period range                                        │
-├─────────────────────────────────────────────────────────────────┤
-│ STICKY FILTER BAR     Brand chip · Sub-channel chip · SKU chip   │
-│                       URL-synced, clear-filters link             │
-├─────────────────────────────────────────────────────────────────┤
-│ KPI ROW               4 slim tiles in a horizontal row           │
-├─────────────────────────────────────────────────────────────────┤
-│ MAIN CHART            Recharts time-series, area+line composed   │
-├─────────────────────────────────────────────────────────────────┤
-│ TWO-COLUMN BREAKDOWN  Problem-SKU table  |  Sub-channel bar      │
-├─────────────────────────────────────────────────────────────────┤
-│ LLM STORY CARD        3-bullet exec summary + next action        │
-└─────────────────────────────────────────────────────────────────┘
+/                                    Triage Inbox (HOME)
+/decision/[sku]/[channel]            Unified deep-dive
+  ?tab=diagnosis                       Step 1 — what & why
+  ?tab=options                         Step 2 — three LLM scenarios
+  ?tab=simulate                        Step 3 — what-if controls
+/promos                              Promo ROI library
+/ask                                 Plain-English Q&A
 ```
 
-This is the exact shape of Dub.co's `/analytics` page — filter chips, metric tiles, main chart, breakdown tables. CPG users recognize it instantly because it's the same composition Tableau / Looker / Mixpanel use.
+Four routes total. Each one answers ONE question for the Commercial Manager:
 
-## Why this shape works for a commercial director
-
-| Section | What the user looks at | What they do next |
+| Route | Question it answers | What's on it |
 |---|---|---|
-| Filter bar | Already-applied dims (chip says "Sub-channel · Off-trade grocery") | Click a chip to re-cut |
-| KPI row | Are we OK overall? (4 numbers in 2 seconds) | If gap → scroll for detail |
-| Main chart | When are we drifting? (line vs target over time) | Hover a month, drill in |
-| Problem-SKU list | Which specific SKUs caused the drift? | Click row → /forecast for that SKU |
-| Sub-channel bar | Which channel is the worst leak? | Click bar → filter to that channel |
-| LLM story | Plain-English answer for the mobile reader | Follow the suggested next action |
+| `/` | "What needs my attention this week?" | Ranked worklist (gap chip → SKU → headline → confidence → open) + 3 summary tiles |
+| `/decision/...` | "What's wrong with this SKU and what do I do?" | 3-tab flow: forecast+drivers narrative → 3 scenario cards → simulator |
+| `/promos` | "What's worked historically?" | Honest ROI table (negative-lift rows shown in red, not hidden) |
+| `/ask` | "Quick answer, no chart" | Chat backed by the same LLM the inbox uses |
 
-Every interaction stays on the same page — only the filters change. When a user wants depth on a single SKU, they click through to `/forecast?sku=...` which is the same Dub-shape (filter bar + KPIs + chart + table) but scoped to one SKU.
+### Why this is good for the user
 
-## Three layers, always in this order
+**Inbox-as-home, not dashboard-as-home.** A Commercial Manager opens the app
+with a job: "which negotiation do I prep for, and what's my ask?" A dashboard
+answers "how are we doing." A worklist answers "what should I do." The inbox
+is sorted by *absolute gap volume* (Hl, not %), because a 200-Hl miss on a
+hero SKU matters more than a 30-Hl miss on a tail SKU even if the % gap is
+worse on the tail.
 
-```
-LAYER 1 — ANSWER       Forecast vs target. The KPI row + main chart answer this.
-LAYER 2 — EVIDENCE     Per-month gap table, anomaly markers, SHAP drivers.
-LAYER 3 — OPTIONS      Simulator (live re-prediction) + 3-scenario LLM recommendations.
-```
+**One SKU = one page.** The old IA scattered each SKU's story across four
+routes (forecast → drivers → recommendations → simulator), forcing the user
+to manually re-stitch context every navigation. The unified decision page
+keeps everything in flow:
+- **Step 1 (Diagnosis)** — forecast chart + SHAP drivers + LLM narrative
+- **Step 2 (Options)** — 3 scenario cards (conservative / balanced / aggressive)
+- **Step 3 (Simulate)** — interactive controls + baseline-vs-simulated chart
 
-The sidebar nav maps each page to one of three questions, surfaced as one-line hints:
+Numbered tabs make the flow obvious. URL carries `?tab=…` for deep-linking
+(e.g. chat answer can say "look at simulate tab for STAR_24…").
 
-| Page | Question |
-|---|---|
-| `/` Overview | Where's the gap? |
-| `/forecast` | What does the model predict for a SKU? |
-| `/drivers` | Why is the gap there? |
-| `/promos` | What's worked before? |
-| `/simulator` | What if we change things? |
-| `/recommendations` | What should we do? |
-| `/chat` | Conversational deep-dive |
+**Honest negative lift.** `/promos` shows negative-lift rows in red. Hiding
+them would make the tool untrustworthy — a Commercial Manager can't argue with
+a grocer using numbers they suspect are massaged.
 
-## Chart library: Recharts (same as Dub)
+**Persona footer.** Sidebar bottom shows "Commercial Manager · UK · Damm" as
+a chip — so the audience is unmistakable to anyone in a screen-share demo.
 
-We removed Plotly entirely — it broke twice in production with CJS/ESM interop issues (see [D-018](DECISIONS.md)). Recharts is what Dub uses, what shadcn templates assume, and it cuts the JS bundle from **5.2 MB → 968 KB**.
+## Stack
 
-Four chart components live in `frontend/src/components/charts/`:
-
-- `ForecastAreaChart.tsx` — main time-series with 80% PI shaded band
-- `GapByChannelChart.tsx` — horizontal bars colored by gap %
-- `DriversWaterfall.tsx` — SHAP horizontal bars, signed colors
-- `SimulatorChart.tsx` — baseline vs simulated overlaid lines
-
-## Label translation everywhere
-
-Raw codes (`EX23SRAN`, `GROCERY`, `Nov.26`) never appear in front of users. The backend's `meta.json` carries human labels (`Estrella Damm · 660ml nr bottle`, `Off-trade grocery`, `November 2026`); the frontend's `format.ts` handles client-side rendering (Hl, percent, GBP). See [DECISIONS.md D-016](DECISIONS.md).
-
-## LLM narrative on top of every key view
-
-Charts are evidence; the LLM-generated sentence on top is the answer. A director scrolling on mobile gets the headline without having to interpret a chart. The story card calls `/api/explain-view` with the current filters + visible state and renders the 3 bullets + suggested next action.
-
----
-
-## 🧱 Stack snapshot
-
-| Concern | Pick | License |
+| Layer | Choice | Why |
 |---|---|---|
-| Framework | **Vite + React 18 + TypeScript** | MIT |
-| Styling | **Tailwind CSS** (dark mode default) | MIT |
-| Primitives | **shadcn/ui** | MIT |
-| Subtle animations | **[Magic UI](https://magicui.design/)** (flat components only) | MIT |
-| Dashboard kit | **Tremor** (cards, KPIs, default charts) | Apache-2.0 |
-| Custom charts | **Plotly.js** (SHAP waterfall, confidence bands) | MIT |
-| Tables | **TanStack Table** + shadcn `Table` styling | MIT |
-| Data fetching | **TanStack Query** + **openapi-fetch** | MIT |
-| Chat | **Vercel AI SDK `useChat`** (SSE) | Apache-2.0 |
-| Icons | **lucide-react** | ISC |
-| Motion | **Framer Motion** (subtle only) | MIT |
-| Toasts | **Sonner** | MIT |
-| Forms | **react-hook-form** + **zod** | MIT |
-| Routing | **react-router-dom v6** | MIT |
+| Framework | **Next.js 16.2** (App Router, Turbopack default) | Server Components → parallel server-side fetches, no client waterfalls |
+| React | **19.2** | Required for App Router + Suspense streaming |
+| Styling | **Tailwind CSS v4** (`@theme inline`) | Zero-config; CSS-variable-driven palette |
+| Type-safe API client | `openapi-fetch` + `openapi-typescript` (generated from `/openapi.json`) | One source of truth: backend Pydantic → frontend types |
+| Client data fetching | **SWR** (for interactive client components only) | Lightweight; matches RSC mental model better than React Query for our shape |
+| Charts | **Recharts 3** | MIT, no Plotly CJS interop pain, light bundle |
+| Primitives | **Radix UI** (slot, dialog, dropdown, select, slider, tabs, separator) | Headless, accessible, MIT |
+| Icons | **lucide-react** | MIT, tree-shakeable |
+| Font | **Inter** via `next/font` | Same as Dub / Linear / Vercel; matches modern analytics UIs |
 
----
+## Design system (Dub-inspired)
 
-## 🎨 Visual direction
+All values live in `web/src/app/globals.css` as CSS variables and are wired
+into Tailwind via `@theme inline { … }`.
 
-- **Theme:** dark by default (`zinc-950` bg), Damm-red accent (`#e30613`-ish), Inter or Geist font.
-- **Tone:** Linear / Vercel / Tremor demo — flat, high-contrast, generous whitespace.
-- **Layout:** left sidebar nav (collapsible) + topbar with brand/SKU/channel/period filters + main content area.
-- **Motion budget (strict):**
-  - Page-enter: 150ms fade
-  - KPI numbers: count-up on mount
-  - Card hover: 1px border lighten, no transform
-  - "Recommended" scenario card: subtle `BorderBeam` accent (2D animated border)
-  - That's it. Nothing else moves.
+**Light theme (default, no dark mode):**
+- `--background: #ffffff`
+- `--foreground: #09090b` (zinc-950)
+- `--muted: #f4f4f5` (zinc-100), `--muted-foreground: #71717a` (zinc-500)
+- `--border: #e4e4e7` (zinc-200)
+- `--primary: #18181b` (zinc-900) — buttons, brand chip, active-tab indicator
 
----
+**Semantic data colors:**
+- `--positive: #16a34a` (green-600)
+- `--negative: #dc2626` (red-600)
+- `--warn: #d97706` (amber-600)
+- `--neutral: #71717a` — gaps within ±1%
+- Soft variants (`-soft` suffix) for chip backgrounds
 
-## 🗺️ Page map
+**Chart palette:**
+- `--chart-1: #3b82f6` (blue-500) — primary forecast line, simulated line
+- `--chart-2: #16a34a` — positive bars
+- `--chart-3: #dc2626` — negative bars
 
-| # | Route | Purpose | Key components |
-|---|---|---|---|
-| 1 | `/` | **Overview** — KPIs + monthly forecast vs budget chart + 3 problem SKUs | Tremor `<Card>`, `<Metric>`, `<BadgeDelta>`, `<AreaChart>`; Magic UI `NumberTicker` for KPI numbers |
-| 2 | `/forecast` | **Forecast detail** — drill brand → SKU → channel with intervals | Custom Plotly area + confidence band; shadcn `<Tabs>` for granularity (week/month) |
-| 3 | `/drivers` | **Deviation drivers** — SHAP waterfall + narrative | Plotly waterfall; Magic UI `TextAnimate` for the narrative paragraph |
-| 4 | `/promos` | **Promo impact** — causal lift charts + ROI table | Plotly per-promo before/after; TanStack Table with shadcn styling |
-| 5 | `/simulator` | **What-if simulator** — sliders → re-forecast → new gap | shadcn `<Slider>`, `<Select>`; Tremor `<AreaChart>` re-renders on submit; Magic UI `ShimmerButton` on "Simulate" |
-| 6 | `/recommendations` | **3 scenarios** — conservative / balanced / aggressive | shadcn `<Card>` × 3, recommended one wrapped in Magic UI `BorderBeam`; "Explain this view" button |
-| 7 | `/chat` | **Agent chat** — streaming, with tool-call breadcrumbs | Vercel AI SDK `useChat`; shadcn `<ScrollArea>` |
+**Typography:**
+- `Inter` everywhere with `font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1, "cv11" 1`
+- Tight letter-spacing on headings (`-0.01em`)
+- Tabular numerics (`font-variant-numeric: tabular-nums`) on every metric
 
----
+## File layout
 
-## 🧩 Magic UI picks (flat only)
+```
+web/
+├── next.config.ts          rewrites /api/* → http://localhost:8000 in dev
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx              Inter font, Sidebar + Topbar shell
+│   │   ├── globals.css             Tailwind v4 + Dub palette
+│   │   ├── page.tsx                / — Triage Inbox
+│   │   ├── decision/[sku]/[channel]/
+│   │   │   ├── page.tsx                  Header + tab orchestration
+│   │   │   ├── decision-tabs.tsx         Client tab shell
+│   │   │   ├── diagnosis-panel.tsx       Step 1 RSC
+│   │   │   ├── options-panel.tsx         Step 2 RSC (calls LLM /api/recommend)
+│   │   │   └── simulate-panel.tsx        Step 3 client component (interactive)
+│   │   ├── promos/page.tsx
+│   │   └── ask/page.tsx
+│   ├── components/
+│   │   ├── shell/{Sidebar,Topbar}.tsx
+│   │   ├── ui/                            shadcn primitives (hand-written)
+│   │   └── charts/{ForecastChart,DriversWaterfall,SimulatorChart}.tsx
+│   └── lib/
+│       ├── api.ts          serverFetch + openapi-fetch client
+│       ├── api.gen.ts      generated from backend's /openapi.json
+│       ├── format.ts       formatHl / formatPercent / formatGBP / gapColor
+│       ├── meta.ts         skuLabel / channelLabel helpers
+│       └── utils.ts        cn() merge helper
+```
 
-Pick **3–4 things max**. Resist the urge to use every component.
+## Data flow
 
-- **`NumberTicker`** — animated count-up on every KPI tile. Instantly "feels expensive", no movement once settled.
-- **`TextAnimate`** — page heading on `/drivers` and the narrative paragraph. Single fade-in per page load.
-- **`BorderBeam`** — subtle animated border on the recommended scenario card. Draws the eye without screaming.
-- **`ShimmerButton`** — the "Simulate" CTA on `/simulator`. A small shine, no scale/rotation.
-- **`Marquee`** *(optional)* — slow, single-row data-sources logo strip in the footer.
+**Server-rendered reads** go through `serverFetch<T>(path)` (in `lib/api.ts`):
+- Always `cache: "no-store"` — backend numbers are derived from snapshots
+  that may update mid-day; we don't want Next caching stale.
+- Direct fetch to `http://localhost:8000` server-side; via `/api/*` rewrite
+  in dev for browser-side parity.
 
-**Explicitly NOT using:**
-- ❌ 3D tilt / parallax cards
-- ❌ Aurora / animated WebGL backgrounds
-- ❌ Cursor trails, spotlight followers
-- ❌ Auto-scrolling carousels
-- ❌ Page-wide motion on filter changes
+**Interactive writes** (simulate, ask) go through `api` from `openapi-fetch`:
+- Typed payloads from generated schema
+- Browser-side, uses `/api/*` proxy
 
----
+**Regenerating types after a backend schema change:**
+```bash
+cd web
+pnpm exec openapi-typescript http://localhost:8000/openapi.json -o src/lib/api.gen.ts
+```
 
-## 🛠️ Bootstrap commands
+## Running locally
 
 ```bash
-# Scaffold
-pnpm create vite@latest frontend -- --template react-ts
-cd frontend
-pnpm install
-pnpm add tailwindcss postcss autoprefixer
-pnpm dlx tailwindcss init -p
+# Terminal 1 — backend
+cd backend
+make dev                    # uvicorn on :8000
 
-# shadcn
-pnpm dlx shadcn@latest init
-pnpm dlx shadcn@latest add button card tabs slider select sheet \
-  command dropdown-menu sonner scroll-area badge separator skeleton table
+# Terminal 2 — frontend
+cd web
+pnpm install                # one-time
+pnpm dev                    # Next.js on :3000 with /api/* → :8000 proxy
 
-# Magic UI (flat components only, via shadcn registry)
-pnpm dlx shadcn@latest add "https://magicui.design/r/number-ticker.json"
-pnpm dlx shadcn@latest add "https://magicui.design/r/text-animate.json"
-pnpm dlx shadcn@latest add "https://magicui.design/r/border-beam.json"
-pnpm dlx shadcn@latest add "https://magicui.design/r/shimmer-button.json"
-pnpm dlx shadcn@latest add "https://magicui.design/r/marquee.json"
-
-# Tremor
-pnpm add @tremor/react
-
-# Charts + tables
-pnpm add plotly.js react-plotly.js @tanstack/react-query @tanstack/react-table
-
-# AI / chat
-pnpm add ai
-
-# Forms + utils
-pnpm add react-hook-form zod @hookform/resolvers react-router-dom lucide-react sonner
-
-# Motion (peer for Magic UI)
-pnpm add framer-motion
-
-# Typed API client
-pnpm add -D openapi-typescript
-pnpm add openapi-fetch
+# Open http://localhost:3000
 ```
 
----
+Env override (optional):
+- `API_URL` — server-side base for FastAPI (default `http://localhost:8000`)
+- `NEXT_PUBLIC_API_URL` — browser-side base (default `/api`, proxied)
 
-## 🔌 API client setup
+## What we kept from D-018
 
-```ts
-// frontend/src/lib/api.ts
-import createClient from "openapi-fetch";
-import type { paths } from "./api.gen"; // generated from FastAPI's openapi.json
+- Dub-inspired zinc + blue/green/red palette (no more Damm-red brand chrome)
+- Inter font, tight letter-spacing, tabular numerics
+- Recharts (no more Plotly)
+- Semantic gap colors
+- Light theme only (no dark-mode toggle)
 
-export const api = createClient<paths>({
-  baseUrl: import.meta.env.VITE_API_URL ?? "http://localhost:8000",
-});
-```
+## What we removed
 
-Regenerate types whenever the backend changes:
+- 4 separate routes (`/forecast`, `/drivers`, `/recommendations`, `/simulator`) — collapsed into one decision page
+- "Overview" dashboard concept — replaced by triage inbox
+- StickyFilterBar component — filters live in the URL of the decision page now, not at the global level (a Commercial Manager works one SKU at a time)
+- TanStack Query — RSC handles reads; SWR for the one interactive client panel
+- React Router — Next App Router handles routing
+- Vite — Next dev server (Turbopack)
 
-```bash
-pnpm openapi-typescript http://localhost:8000/openapi.json -o src/lib/api.gen.ts
-```
+## Legacy
 
----
-
-## 🗂️ Suggested folder layout
-
-```
-frontend/
-  src/
-    app/                  # router setup, layouts, providers
-    pages/
-      Overview.tsx
-      Forecast.tsx
-      Drivers.tsx
-      Promos.tsx
-      Simulator.tsx
-      Recommendations.tsx
-      Chat.tsx
-    components/
-      ui/                 # shadcn + magic-ui (all live here)
-      charts/             # Plotly wrappers
-      kpi/                # KPI tile using NumberTicker
-      sidebar/
-      filters/            # brand/SKU/channel/period selectors
-      explain-this-view.tsx
-    lib/
-      api.ts
-      api.gen.ts
-      query-client.ts
-    hooks/
-      use-forecast.ts
-      use-gap.ts
-      use-drivers.ts
-      use-simulate.ts
-      use-recommend.ts
-    styles/
-      globals.css
-```
-
----
-
-## 🧪 Skeleton-states & demo safety
-
-- Every fetch hook returns `<Skeleton />` while loading (shadcn `Skeleton`).
-- Wrap each page in a `<Suspense>` boundary and an `<ErrorBoundary>` showing a friendly toast on error.
-- Demo data is **pre-computed at H22**: the backend reads pre-baked Parquet/Mongo snapshots, no live HF call during the live demo (chat is the only exception — it has a stub fallback).
-- The frontend **always** calls the live backend. No static-JSON fallback. If the backend is down it's a real error, surfaced via a Sonner toast.
-
----
-
-## ⏱️ Hour-by-hour for the frontend dev
-
-| Hours | Task |
-|---|---|
-| H12–H13 | Bootstrap Vite + Tailwind + shadcn + Tremor; theme + sidebar + router shell |
-| H13–H14 | Stub all 7 pages with placeholder data; wire openapi-fetch + TanStack Query; first API call works |
-| H14–H16 | Overview + Forecast pages with real data; KPI tiles with `NumberTicker` |
-| H16–H18 | Drivers (Plotly SHAP + `TextAnimate`) + Promos (causal charts + ROI table) |
-| H18–H20 | Simulator (sliders + `ShimmerButton`) + Recommendations (3 shadcn cards, `BorderBeam` on recommended) |
-| H20–H21 | Chat page (`useChat` against `/api/chat` SSE); "Explain this view" button across pages |
-| H21–H22 | Polish: skeletons, empty states, projector-resolution check, favicon, footer with data sources |
-| H22–H24 | Rehearse; harden the hero SKU path; record backup video |
-
----
-
-## ✅ Done checklist (frontend slice)
-
-- [ ] Dark theme + Damm-red accent + Inter/Geist font
-- [ ] Sidebar nav with active state
-- [ ] Brand/SKU/channel/period filters in topbar (persist across pages)
-- [ ] All 7 pages render real data from the FastAPI backend
-- [ ] KPI tiles animate (NumberTicker) and show delta vs budget
-- [ ] Forecast chart shows actual + forecast + interval band
-- [ ] SHAP waterfall renders for any selected gap
-- [ ] Simulator slider re-runs forecast and shows new gap closure %
-- [ ] Recommendations page shows 3 scenarios; recommended one has `BorderBeam`
-- [ ] Chat streams responses with visible tool-call breadcrumbs
-- [ ] "Explain this view" button works on every data page
-- [ ] Loading skeletons everywhere; no white flashes
-- [ ] LICENSE / attribution notes in README for shadcn, Magic UI, Tremor
-- [ ] Backup video recorded
+The previous Vite app is preserved at `frontend-legacy/` for reference and
+diff inspection. It will be deleted in a follow-up commit once the new app
+has been demoed end-to-end.

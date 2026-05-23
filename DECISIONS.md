@@ -13,8 +13,97 @@ The numbered list is purely for cross-referencing — order is chronological by 
 
 ---
 
+## D-019 — Persona-locked IA + Next.js rebuild (4 pages, was 7)
+🟢 Accepted · supersedes D-018 · Phase 3
+
+**What was wrong:**
+1. **No defined user.** D-018 rebuilt the UI in Dub's color palette but kept
+   the same 7-page IA: Overview / Forecast / Drivers / Recommendations /
+   Promos / Simulator / Chat. That's an engineering taxonomy ("here are all
+   the models we have"), not a user flow. We couldn't answer "who is this
+   for and what's their daily job?"
+2. **Story scattered across 4 pages.** To act on one SKU's gap, the user
+   had to bounce between Forecast → Drivers → Recommendations → Simulator,
+   manually re-stitching the context each time. Every navigation was a
+   re-fetch + a re-orient. Hostile to the actual workflow.
+3. **Overview was passive.** A dashboard answers "how are we doing"; a
+   Commercial Manager opens the app to answer "what should I do this week."
+   Those are different products.
+4. **Wrong framework.** Vite + React Router meant client-side fetch
+   waterfalls for every panel. Next 16 RSC lets us fetch in parallel on the
+   server, stream slow LLM calls via Suspense, and skip client-side route
+   flickers — material UX gains for free.
+
+**Persona-lock:**
+- Primary user: **UK Commercial / Trade Marketing Manager.**
+- Daily job: prep grocer / pubco calls. Needs to know *where* I'm bleeding,
+  *why*, and *what to bring to the negotiation*.
+- Time budget: ~30 minutes per morning before stand-ups.
+- Trust signal: numbers must be defensible enough to argue with a buyer.
+
+**Decision:** rebuild the frontend from scratch in Next.js 16 + App Router,
+collapse to **4 pages**, and make the entry point a **triage inbox** instead
+of a dashboard.
+
+| Route | Job-to-be-done | Replaces |
+|---|---|---|
+| `/` | **Triage Inbox** — ranked worklist of decisions, biggest gap first | `/overview` |
+| `/decision/[sku]/[channel]` | **Unified deep-dive** with 3 tabs: Diagnosis → Options → Simulate | `/forecast`, `/drivers`, `/recommendations`, `/simulator` |
+| `/promos` | **Playbook** — ROI library for negotiation prep | `/promos` (kept, polished) |
+| `/ask` | **Chat** — plain-English Q&A for ad-hoc and exec prep | `/chat` |
+
+**Why the inbox-as-home matters:** every row on `/` is a unit of work — one
+SKU × sub-channel × period with a gap chip, a one-line headline, a
+confidence pill, and an "Open" affordance. Sorted by absolute gap volume
+(Hl), so the biggest commercial bleed is row 1. A Commercial Manager
+literally works the list top-down: open row, decide, move on. We also show a
+small "Tailwinds" section underneath for positive gaps — protect, don't
+disturb.
+
+**Why the decision page is one page (not four):** a single SKU's story is
+one story. Diagnosis (what / why), Options (3 LLM-generated scenario cards
+backed by real promo-ROI), Simulate (interactive what-if) are *steps in a
+flow*, not separate apps. Numbered tabs make the flow obvious; the URL
+carries `?tab=` so users can deep-link to a specific step from the chat
+("look at the simulate tab for STAR_24…").
+
+**Stack changes:**
+- Vite + React 18 + React Router → **Next.js 16 (App Router) + React 19**
+- Tailwind v3 → **Tailwind v4** (`@theme` directive, no PostCSS config)
+- TanStack Query → **RSC `fetch` + SWR for client-interactive bits**
+- Custom `AppShell` → **proper Dub-pattern sidebar** (brand mark + workflow nav + persona footer)
+- `frontend/` (Vite) → moved to **`frontend-legacy/`** (kept as reference; will be deleted in a follow-up commit once new app is verified end-to-end)
+- New app lives at **`web/`** at the repo root
+
+**Backend untouched.** All 15 endpoints serve the same parquet snapshots.
+Next.js Server Components consume them via `serverFetch()`; the browser-side
+client uses the existing typed `openapi-fetch` client.
+
+**Performance wins from the framework change:**
+- Inbox uses parallel RSC fetches (`/api/gap` + `/api/meta`) → one round-trip, no client waterfall
+- Decision page streams Diagnosis (fast, ~80ms) while Options (LLM, ~5–10s) renders in a Suspense boundary — user sees the chart immediately
+- No client-side route flicker between pages (RSC handles handoffs)
+- Bundle smaller (no React Router, no TanStack Query for read paths)
+
+**Where it landed:** entire `web/` directory. New files:
+- `web/src/app/layout.tsx` — Inter font, Sidebar + Topbar shell
+- `web/src/app/page.tsx` — Triage Inbox (the new home)
+- `web/src/app/decision/[sku]/[channel]/page.tsx` + `decision-tabs.tsx` + `diagnosis-panel.tsx` + `options-panel.tsx` + `simulate-panel.tsx`
+- `web/src/app/promos/page.tsx`
+- `web/src/app/ask/page.tsx`
+- `web/src/components/shell/{Sidebar,Topbar}.tsx`
+- `web/src/components/ui/*` — hand-written shadcn primitives (button, card, tabs, select, slider, dropdown-menu, badge, skeleton, separator, input)
+- `web/src/components/charts/{ForecastChart,DriversWaterfall,SimulatorChart}.tsx`
+- `web/src/lib/{api,api.gen,format,meta,utils}.ts`
+
+**Old palette (D-018) preserved:** the Dub-inspired zinc + blue/green/red
+palette from D-018 is kept; only the IA + framework changed. Light theme,
+Inter font, semantic-color charts — all carry over.
+
+---
+
 ## D-018 — Full UI pivot to Dub.co's analytics-page pattern (Recharts, sticky filter bar)
-🟢 Accepted · supersedes D-017 · Phase 3
+🟡 Superseded by D-019 · Phase 3
 
 **What was wrong:**
 1. Plotly broke twice in production. First the `react-plotly.js` default

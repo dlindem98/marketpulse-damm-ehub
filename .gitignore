@@ -17,7 +17,8 @@ backend/models/
 *.feather
 
 # Allow OpenAPI generated artifacts
-!frontend/src/lib/api.gen.ts
+!frontend-legacy/src/lib/api.gen.ts
+!web/src/lib/api.gen.ts
 
 # ===========================================================
 # Python (backend)
@@ -41,8 +42,10 @@ wheels/
 
 # Frontend code lives in src/lib — re-include it (the broader lib/ pattern above
 # is for legacy Python build artifacts, not source)
-!frontend/src/lib/
-!frontend/src/lib/**
+!frontend-legacy/src/lib/
+!frontend-legacy/src/lib/**
+!web/src/lib/
+!web/src/lib/**
 
 # Environments
 .venv/

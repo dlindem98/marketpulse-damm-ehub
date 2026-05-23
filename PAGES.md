@@ -1,8 +1,86 @@
 # Pages — per-page specification
 
-One section per page. Each section has: hooks, data shape, layout, interactions, states, "Explain this view" payload, and a definition of done.
+> **🚨 IA pivot landed.** This document was written for the original 7-page Vite app. The Next.js 16 rebuild collapsed it to **4 pages** organised around the Commercial Manager's actual workflow. See [DECISIONS.md D-019](DECISIONS.md#d-019-) for full rationale.
+>
+> **Current authoritative IA is in the section below.** The legacy 7-page detail is preserved further down for data-hook reference (the backend endpoints are unchanged).
 
-## 🌐 Global filter contract (pinned)
+---
+
+## Current IA (Next.js 16 — 4 pages)
+
+### Persona
+
+**UK Commercial / Trade Marketing Manager.** Daily job: prep grocer / pubco calls. Time budget: ~30 minutes per morning. Trust signal: numbers must be defensible enough to argue with a buyer.
+
+### Route map
+
+| Route | Job-to-be-done | Backend endpoints | LLM? |
+|---|---|---|---|
+| `/` | Triage inbox — ranked worklist of decisions | `/api/gap`, `/api/meta` | no (LLM lives on detail page) |
+| `/decision/[sku]/[channel]` | One-screen deep-dive in 3 tabs | per tab (below) | yes (Options tab) |
+| `/promos` | Historical ROI library | `/api/promos/roi` | no |
+| `/ask` | Plain-English Q&A | `/api/explain-view` (POST) | yes (Kimi K2 deep) |
+
+### `/` — Triage Inbox
+
+- **RSC** parallel-fetches `/api/gap` and `/api/meta` server-side
+- Splits into:
+  - Action queue (top 20 negative gaps, sorted by `gap_hl` ascending — biggest commercial bleed first)
+  - Tailwinds (top 5 positive gaps — "protect, don't disturb")
+- Three summary tiles: Behind target (count) / Total gap (sum Hl) / Ahead of target (count)
+- Each row links to `/decision/[sku]/[channel]?period=…`
+- **Why:** a commercial manager opens the app with a *job*, not curiosity. The home is a worklist.
+
+### `/decision/[sku]/[channel]` — Unified deep-dive
+
+URL params: `sku` (path), `channel` (path), `period` (search, optional), `tab` (search, default `diagnosis`).
+
+Header shows: SKU label · channel label · period · gap card (% + Hl + forecast vs target + confidence).
+
+Three numbered tabs, each its own Suspense boundary:
+
+**Tab 1 — Diagnosis** (`diagnosis-panel.tsx`, RSC)
+- Forecast chart (Recharts ComposedChart, 80% confidence band + median + dashed target)
+- SHAP drivers waterfall (top 8, green/red diverging)
+- LLM narrative card (`/api/explain-view`, page=`drivers`) — headline, 3 bullets, suggested next action
+- **Parallel fetches:** forecast + drivers + LLM (LLM is best-effort, `.catch(() => null)`)
+
+**Tab 2 — Options** (`options-panel.tsx`, RSC)
+- POST `/api/recommend` → 3 scenarios (conservative / balanced / aggressive)
+- Each card: headline, expected gap-closure %, action list (lift Hl, gap-close %, cost, confidence, 2 evidence rows), risk notes
+- Balanced has `ring-2 ring-foreground/15` and "Recommended" badge
+- "Tweak in simulator →" button links to `?tab=simulate&period=…`
+- **Streams in** — LLM call is 5–10s; user sees Diagnosis immediately
+
+**Tab 3 — Simulate** (`simulate-panel.tsx`, client component)
+- Forecast points loaded via SWR (`useSWR(`/api/forecast?...`)`)
+- Controls: month toggles (multi-select) · discount slider 0–30% · promo-type select
+- "Simulate" button POSTs `/api/simulate` → SimulatorChart (baseline dashed gray + simulated solid blue)
+- Three metrics: Gap closed %, Lift added Hl, Est. cost GBP
+- **Why client-side:** sliders need local state; one API call per "Simulate" click is the right boundary
+
+### `/promos` — Promo library
+
+- RSC fetches `/api/promos/roi`
+- Flat sortable table: promo type · avg lift % · avg lift Hl · est. cost · ROI · n · confidence
+- Negative-lift rows shown in red (`gapColor()` returns `var(--negative)`)
+- No charts — ranking is not the answer; negotiation context is
+- **Why:** the Commercial Manager opens this before a grocer call to remember which mechanics ROI'd
+
+### `/ask` — Chat
+
+- Client component, calls `/api/explain-view` (POST, `page: "chat"`)
+- User question goes in `visible_state.user_question`
+- Renders headline + bullets as a single assistant turn
+- **Why:** ad-hoc questions + exec readout prep; covers everything not in the inbox
+
+---
+
+## Legacy 7-page IA (Vite app, superseded)
+
+The sections below describe the previous information architecture (Overview / Forecast / Drivers / Promos / Simulator / Recommendations / Chat). **All backend endpoints and data shapes are still valid** — the URL → endpoint mapping is what changed. Use these sections for endpoint reference, not for current UI routing.
+
+## 🌐 Global filter contract (legacy — Vite SPA)
 
 Every page reads the same topbar filters. **The "channel" filter maps to `CUSTOMERS.SubChannel`** — see [DATA.md §3](DATA.md) for the decision and the 6 allowed values.
 

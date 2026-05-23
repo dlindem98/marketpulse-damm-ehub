@@ -9,8 +9,8 @@ A tool that forecasts UK sales, detects deviations vs. budget, and recommends co
 - **[ML.md](ML.md)** — Modeling strategy: training plan, ensemble, reconciliation, anomalies, CV
 - **[STACK.md](STACK.md)** — Tech stack with rationale, MongoDB collections
 - **[AGENT.md](AGENT.md)** — LLM routing (fast Llama / deep Kimi-Instruct / fallback), tools, schemas, ML output caching
-- **[PAGES.md](PAGES.md)** — 7-page spec with pinned filter contract and hero deep-link
-- **[FRONTEND.md](FRONTEND.md)** — React build guide (shadcn + Magic UI + Tremor, flat aesthetic)
+- **[PAGES.md](PAGES.md)** — Page-by-page spec (now 4 pages, see D-019)
+- **[FRONTEND.md](FRONTEND.md)** — Next.js 16 + App Router build guide, persona-locked IA
 - **[PLAN.md](PLAN.md)** — 24h execution plan, role split, risks, done checklist
 - **[DEMO.md](DEMO.md)** — 5-min hero narrative + judge Q&A + safety net
 - **[DECISIONS.md](DECISIONS.md)** — drift log: every place implementation diverged from the plan and why
@@ -25,10 +25,12 @@ A tool that forecasts UK sales, detects deviations vs. budget, and recommends co
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  React frontend (Vite + TS)                                 │
-│  shadcn/ui · Magic UI · Tremor · TanStack Query            │
-│  Pages: Overview · Forecast · Drivers · Promos · Simulator │
-│         Recommendations · Chat                              │
+│  Next.js 16 frontend (App Router · RSC · Tailwind v4)       │
+│  Persona: UK Commercial / Trade Marketing Manager           │
+│  Routes: /  →  Triage Inbox                                 │
+│          /decision/[sku]/[channel]  →  Diagnose-Options-Sim │
+│          /promos  →  Historical ROI library                 │
+│          /ask     →  Plain-English Q&A                      │
 └────────────────────────┬────────────────────────────────────┘
                          │  REST + SSE (typed via OpenAPI)
 ┌────────────────────────▼────────────────────────────────────┐
@@ -78,17 +80,17 @@ cp /path/to/Excels/*.xlsx backend/app/data/raw/
 make first-run
 
 # 4. Run it
-make demo                                 # backend :8000  +  frontend :5173
+make demo                                 # backend :8000  +  web :3000
 ```
 
-Open <http://localhost:5173>. Backend OpenAPI at <http://localhost:8000/docs>.
+Open <http://localhost:3000>. Backend OpenAPI at <http://localhost:8000/docs>.
 
 ### Day-to-day commands
 
 ```bash
-make demo         backend + frontend together
+make demo         backend + Next.js web together
 make doctor       check prereqs (HF, uv, pnpm, data, mongo)
-make types        regenerate frontend TS types from live backend OpenAPI
+make types        regenerate web/ TS types from live backend OpenAPI
 make data         run ETL  (raw Excel → snapshots/*.parquet) — Phase 1+
 make train        fit forecast ensemble + write snapshots    — Phase 2+
 make help         everything else

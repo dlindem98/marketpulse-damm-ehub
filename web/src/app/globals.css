@@ -1,0 +1,101 @@
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+/* MarketPulse — Dub-inspired light-theme palette.
+ * Neutrals: zinc. Primary: zinc-900 for surfaces, blue-600 for chart accent.
+ * Semantic: green (positive), red (negative), amber (warn). */
+
+:root {
+  --background: #ffffff;
+  --foreground: #09090b;            /* zinc-950 */
+  --muted: #f4f4f5;                 /* zinc-100 */
+  --muted-foreground: #71717a;      /* zinc-500 */
+  --card: #ffffff;
+  --card-foreground: #09090b;
+  --border: #e4e4e7;                /* zinc-200 */
+  --input: #e4e4e7;
+  --ring: #18181b;                  /* zinc-900 */
+  --primary: #18181b;               /* zinc-900 */
+  --primary-foreground: #fafafa;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --accent: #f4f4f5;
+  --accent-foreground: #18181b;
+  --destructive: #dc2626;
+  --destructive-foreground: #fafafa;
+
+  /* Semantic data colors (charts, gap pills, drivers) */
+  --positive: #16a34a;              /* green-600 */
+  --positive-soft: #dcfce7;         /* green-100 */
+  --negative: #dc2626;              /* red-600 */
+  --negative-soft: #fee2e2;         /* red-100 */
+  --warn: #d97706;                  /* amber-600 */
+  --warn-soft: #fef3c7;             /* amber-100 */
+  --neutral: #71717a;               /* zinc-500 */
+
+  /* Chart palette */
+  --chart-1: #3b82f6;               /* blue-500 — forecast line */
+  --chart-2: #16a34a;               /* green-600 */
+  --chart-3: #dc2626;               /* red-600 */
+  --chart-4: #a855f7;               /* purple-500 */
+  --chart-5: #f59e0b;               /* amber-500 */
+
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-positive: var(--positive);
+  --color-positive-soft: var(--positive-soft);
+  --color-negative: var(--negative);
+  --color-negative-soft: var(--negative-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-neutral: var(--neutral);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1, "cv11" 1;
+}
+
+h1, h2, h3, h4 { letter-spacing: -0.01em; }
+
+/* Tabular numerics on metric values */
+.tabular-nums { font-variant-numeric: tabular-nums; }

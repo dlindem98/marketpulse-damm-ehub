@@ -1,7 +1,7 @@
 # MarketPulse UK — dev ergonomics
 #
 # First time:   make first-run     (doctor + install + types)
-# Every time:   make demo          (backend on :8000 + frontend on :5173)
+# Every time:   make demo          (backend on :8000 + Next.js web on :3000)
 #
 # Everything else is a piece of the above — see `make help`.
 
@@ -9,7 +9,7 @@ SHELL := /bin/bash
 PY    := PYTHONHASHSEED=42 uv run python   # deterministic anonymization
 
 BE     := backend
-FE     := frontend
+FE     := web
 PNPM   := pnpm
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -22,16 +22,16 @@ help:
 	@echo "MarketPulse UK — common commands"
 	@echo ""
 	@echo "  make first-run    one-shot for a fresh clone (doctor + env + install + types)"
-	@echo "  make demo         start backend + frontend together"
+	@echo "  make demo         start backend + Next.js web together"
 	@echo "  make doctor       check prereqs (HF, uv, pnpm, data, mongo)"
 	@echo ""
-	@echo "  make install      install backend + frontend deps"
-	@echo "  make types        regenerate frontend TS types from live OpenAPI"
+	@echo "  make install      install backend + web deps"
+	@echo "  make types        regenerate web/ TS types from live OpenAPI"
 	@echo "  make data         run ETL (raw Excel → snapshots/*.parquet)"
 	@echo "  make train        fit forecast ensemble + write snapshots"
 	@echo ""
 	@echo "  make backend      run FastAPI on :8000 only"
-	@echo "  make frontend     run Vite on :5173 only"
+	@echo "  make web          run Next.js on :3000 only"
 	@echo "  make clean        remove caches, build artifacts"
 	@echo ""
 
@@ -46,7 +46,7 @@ first-run: env doctor install types
 .PHONY: demo
 demo: install
 	@trap 'kill 0' INT TERM EXIT; \
-	$(MAKE) -j2 backend frontend
+	$(MAKE) -j2 backend web
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Bootstrap
@@ -100,6 +100,9 @@ types:
 	cd ../$(FE) && $(PNPM) exec openapi-typescript http://localhost:8000/openapi.json -o src/lib/api.gen.ts ; \
 	pkill -f "uvicorn app.main:app --port 8000" 2>/dev/null || true
 
+.PHONY: web-types
+web-types: types  # alias — kept for clarity
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Data + training (Phase 1+ will fill these in)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -115,12 +118,12 @@ train: data
 # Individual servers
 # ──────────────────────────────────────────────────────────────────────────────
 
-.PHONY: backend frontend
+.PHONY: backend web
 backend:
 	cd $(BE) && uv run uvicorn app.main:app --reload --port 8000
 
-frontend:
-	cd $(FE) && $(PNPM) dev --host 127.0.0.1
+web:
+	cd $(FE) && $(PNPM) dev
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Housekeeping
@@ -131,5 +134,5 @@ clean:
 	find . -type d -name __pycache__       -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .ruff_cache       -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .mypy_cache       -exec rm -rf {} + 2>/dev/null || true
-	rm -rf $(FE)/dist $(FE)/.vite
+	rm -rf $(FE)/.next $(FE)/out
 	rm -rf $(BE)/app/data/cache/*.parquet
