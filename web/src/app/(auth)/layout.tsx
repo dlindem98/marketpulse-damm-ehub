@@ -1,131 +1,85 @@
 /**
- * Auth layout — 2-column split.
+ * Auth layout — direct port of Dub's
+ *   apps/web/app/app.dub.co/(auth)/layout.tsx
  *
- * Left column: the form (Dub's grow-basis-0 vertical sandwich).
- * Right column: marketing panel with hackathon context + sponsor strip.
+ * Grid:
+ *   grid-cols-1                          (mobile)
+ *   min-[900px]:grid-cols-[1fr_440px]    (tablet)
+ *   lg:grid-cols-[1fr_595px]             (desktop)
  *
- * Pattern reference: Linear / Vercel / Notion (NOT Dub — Dub's consumer
- * login is single-column; this two-pane is what was requested for Ramp
- * given the hackathon context).
+ * Left:  form column with subtle grid bg + conic-gradient blob at top
+ *        and the Ramp wordmark absolutely pinned to top-center.
+ * Right: <SidePanel /> — testimonial card + sponsor logos.
  *
- * Sponsor logos are read from web/public/sponsors/. See the README there.
- * Until real SVGs are dropped in, the strip renders text wordmarks so the
- * layout doesn't look broken.
+ * Visual primitives ported as inline CSS (Dub's @dub/ui Grid component
+ * isn't available to us, so we recreate the dot/line grid via
+ * background-image + mask-image).
  */
 
 import Link from "next/link"
-import Image from "next/image"
-
-// Drop logo files into web/public/sponsors/ and add an entry here.
-// `logo` is optional — when absent, the wordmark renders as text.
-type Sponsor = { name: string; logo?: string; href?: string }
-
-const SPONSORS: Sponsor[] = [
-  { name: "Damm" },
-  { name: "Engineering Hub" },
-  { name: "Anthropic" },
-  { name: "Hugging Face" },
-]
+import { Wordmark } from "@/components/brand/Wordmark"
+import { SidePanel } from "@/components/auth/SidePanel"
+import { cn } from "@/lib/utils"
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-[100dvh] lg:grid lg:grid-cols-2 bg-white">
-      {/* LEFT — form column (Dub's vertical sandwich) */}
-      <div className="flex min-h-[100dvh] w-full flex-col items-center justify-between bg-white">
-        <div className="grow basis-0">
-          <div className="h-16 lg:h-24" />
+    <div className="relative grid min-h-[100dvh] grid-cols-1 min-[900px]:grid-cols-[minmax(0,1fr)_440px] lg:grid-cols-[minmax(0,1fr)_595px]">
+      {/* LEFT — form column with grid background + gradient blob */}
+      <div className="relative">
+        {/* Background layer (grid + gradient) */}
+        <div className="absolute inset-0 isolate overflow-hidden bg-white">
+          {/* Subtle grid pattern, faded at top + edges */}
+          <div
+            className={cn(
+              "absolute inset-y-0 left-1/2 w-[1200px] -translate-x-1/2",
+              "[mask-composite:intersect] [mask-image:linear-gradient(black,transparent_320px),linear-gradient(90deg,transparent,black_5%,black_95%,transparent)]",
+            )}
+            aria-hidden
+            style={{
+              backgroundImage:
+                "linear-gradient(to right, rgb(229 229 229) 1px, transparent 1px), linear-gradient(to bottom, rgb(229 229 229) 1px, transparent 1px)",
+              backgroundSize: "60px 60px",
+              backgroundPosition: "45px 0",
+            }}
+          />
+
+          {/* Conic-gradient blob behind the wordmark */}
+          {[0, 1].map((idx) => (
+            <div
+              key={idx}
+              aria-hidden
+              className={cn(
+                "absolute left-1/2 top-6 size-[80px] -translate-x-1/2 -translate-y-1/2 scale-x-[1.6]",
+                idx === 0 ? "mix-blend-overlay" : "opacity-10",
+              )}
+            >
+              {Array.from({ length: idx === 0 ? 2 : 1 }).map((_, inner) => (
+                <div
+                  key={inner}
+                  className={cn(
+                    "absolute -inset-16 mix-blend-overlay blur-[50px] saturate-[2]",
+                    "bg-[conic-gradient(from_90deg,#F00_5deg,#EAB308_63deg,#5CFF80_115deg,#1E00FF_170deg,#855AFC_220deg,#3A8BFD_286deg,#F00_360deg)]",
+                  )}
+                />
+              ))}
+            </div>
+          ))}
         </div>
 
-        <div className="relative flex w-full flex-col items-center justify-center px-4">
+        {/* Foreground — wordmark + form */}
+        <div className="relative flex min-h-[100dvh] w-full justify-center">
+          <Link
+            href="/"
+            className="absolute left-1/2 top-4 z-10 -translate-x-1/2"
+          >
+            <Wordmark className="h-8" />
+          </Link>
           {children}
         </div>
-
-        <div className="flex grow basis-0 flex-col justify-end">
-          <p className="px-10 py-8 text-center text-xs font-medium text-neutral-500 md:px-0">
-            By continuing, you agree to the{" "}
-            <Link href="#" className="font-semibold text-neutral-600 hover:text-neutral-800">
-              demo terms
-            </Link>
-            . Any button signs you in — this is a hackathon walkthrough.
-          </p>
-        </div>
       </div>
 
-      {/* RIGHT — marketing panel (hidden on mobile) */}
-      <div className="hidden lg:flex relative flex-col justify-between bg-neutral-50 border-l border-neutral-200 overflow-hidden">
-        {/* Subtle dot grid background */}
-        <div
-          aria-hidden
-          className="absolute inset-0 opacity-[0.35]"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 1px 1px, rgb(212 212 216) 1px, transparent 0)",
-            backgroundSize: "20px 20px",
-          }}
-        />
-
-        {/* Top eyebrow */}
-        <div className="relative px-12 pt-12">
-          <div className="text-[11px] uppercase tracking-[0.14em] text-neutral-500 font-medium">
-            Built for
-          </div>
-          <div className="mt-2 text-[28px] leading-tight font-semibold tracking-tight text-neutral-900">
-            Damm × Engineering Hub
-            <br />
-            <span className="text-neutral-400">Hackathon 2026</span>
-          </div>
-          <div className="mt-3 text-sm text-neutral-500">
-            Barcelona · 23–24 May 2026
-          </div>
-        </div>
-
-        {/* Middle quote / value prop */}
-        <div className="relative px-12">
-          <blockquote className="text-lg leading-snug text-neutral-700 font-medium max-w-md">
-            &ldquo;Forecast the UK book, explain the gap, recommend the play.
-            One inbox — every morning.&rdquo;
-          </blockquote>
-          <div className="mt-3 text-[12px] text-neutral-500">
-            — Ramp, in one sentence
-          </div>
-        </div>
-
-        {/* Bottom sponsor strip */}
-        <div className="relative px-12 pb-12">
-          <div className="text-[11px] uppercase tracking-[0.14em] text-neutral-500 font-medium mb-4">
-            Partners & sponsors
-          </div>
-          <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
-            {SPONSORS.map((s) => (
-              <SponsorMark key={s.name} sponsor={s} />
-            ))}
-          </div>
-          <p className="mt-6 text-[10.5px] text-neutral-400 max-w-md leading-relaxed">
-            Drop sponsor logos as SVG into <code className="font-mono">web/public/sponsors/</code>
-            {" "}and reference them from <code className="font-mono">(auth)/layout.tsx</code>.
-          </p>
-        </div>
-      </div>
+      {/* RIGHT — sponsor side panel (hidden below 900px) */}
+      <SidePanel />
     </div>
-  )
-}
-
-function SponsorMark({ sponsor }: { sponsor: Sponsor }) {
-  if (sponsor.logo) {
-    return (
-      <Image
-        src={`/sponsors/${sponsor.logo}`}
-        alt={sponsor.name}
-        width={120}
-        height={28}
-        className="h-7 w-auto opacity-70 grayscale hover:grayscale-0 hover:opacity-100 transition"
-      />
-    )
-  }
-  // Text wordmark fallback — until real logos are dropped in
-  return (
-    <span className="text-[13px] font-semibold tracking-tight text-neutral-500">
-      {sponsor.name}
-    </span>
   )
 }

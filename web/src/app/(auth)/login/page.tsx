@@ -1,19 +1,24 @@
 "use client"
 
 /**
- * Login — Dub consumer auth pattern.
+ * Login form — matches Dub's actual ordering from the screenshot:
+ *   1. Email input + "Log in with email" PRIMARY (black, full width)
+ *   2. OR separator
+ *   3. Continue with Google  (outline)
+ *   4. Continue with GitHub  (outline)
  *
- * Compact form. No "what is this app" subtitle (the wordmark brands it).
- * Buttons sized to match Dub's `Button` (h-10, font-medium).
- * Any button -> sets mp_session cookie -> bounces to ?next=… (defaults to /).
+ * Plus: "Don't have an account? Sign up" link and the dotted alternative
+ * banner below ("Built for the Damm × Engineering Hub Hackathon").
+ *
+ * Auth is fake — any button signs you in by setting the mp_session cookie.
  */
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useState } from "react"
 import { Loader2 } from "lucide-react"
-import { Wordmark } from "@/components/brand/Wordmark"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import Link from "next/link"
 
 const SESSION_COOKIE = "mp_session"
 
@@ -24,13 +29,15 @@ function signIn(): void {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="w-full max-w-sm h-[360px]" />}>
-      <LoginForm />
-    </Suspense>
+    <div className="flex w-full justify-center px-4 pt-32 pb-16">
+      <Suspense fallback={<div className="w-full max-w-sm" />}>
+        <LoginCard />
+      </Suspense>
+    </div>
   )
 }
 
-function LoginForm() {
+function LoginCard() {
   const router = useRouter()
   const search = useSearchParams()
   const next = search.get("next") || "/"
@@ -47,15 +54,49 @@ function LoginForm() {
 
   return (
     <div className="w-full max-w-sm">
-      <div className="flex justify-center mb-6">
-        <Wordmark />
-      </div>
-
       <h3 className="text-center text-xl font-semibold text-neutral-900">
-        Sign in to your Ramp account
+        Log in to your Ramp account
       </h3>
 
-      <div className="mt-7 flex flex-col gap-2">
+      {/* Email — primary path */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (pending) return
+          handle("email")
+        }}
+        className="mt-8 flex flex-col gap-3"
+      >
+        <div>
+          <label className="text-sm font-medium text-neutral-900">Work email</label>
+          <Input
+            type="email"
+            placeholder="name@damm.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            className="mt-1.5 h-10"
+          />
+        </div>
+        <Button
+          type="submit"
+          className="h-10 font-medium"
+          disabled={pending !== null}
+        >
+          {pending === "email" && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+          Log in with email
+        </Button>
+      </form>
+
+      {/* OR separator */}
+      <div className="my-5 flex items-center gap-3">
+        <div className="h-px flex-1 bg-neutral-200" />
+        <div className="text-[11px] uppercase tracking-wider text-neutral-400">OR</div>
+        <div className="h-px flex-1 bg-neutral-200" />
+      </div>
+
+      {/* OAuth — secondary */}
+      <div className="flex flex-col gap-2">
         <Button
           variant="outline"
           className="h-10 gap-2.5 font-medium border-neutral-200"
@@ -76,37 +117,38 @@ function LoginForm() {
         </Button>
       </div>
 
-      <div className="my-5 flex items-center gap-3">
-        <div className="h-px flex-1 bg-neutral-200" />
-        <div className="text-[11px] uppercase tracking-wider text-neutral-400">or</div>
-        <div className="h-px flex-1 bg-neutral-200" />
-      </div>
-
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (pending) return
-          handle("email")
-        }}
-        className="flex flex-col gap-2"
-      >
-        <Input
-          type="email"
-          placeholder="name@damm.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          autoComplete="email"
-          className="h-10"
-        />
-        <Button type="submit" className="h-10 font-medium" disabled={pending !== null}>
-          {pending === "email" && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-          Continue with email
-        </Button>
-      </form>
-
-      <p className="mt-6 text-center text-sm text-neutral-500">
+      {/* Sign-up link */}
+      <p className="mt-6 text-center text-sm font-medium text-neutral-500">
         Don&apos;t have an account?{" "}
-        <span className="font-semibold text-neutral-700">It&apos;s a demo — any button works.</span>
+        <span className="font-semibold text-neutral-700">
+          It&apos;s a demo — any button works.
+        </span>
+      </p>
+
+      {/* Alternative banner — Dub's dotted pattern style */}
+      <Link
+        href="https://github.com/GeriMan2004/marketpulse-damm-ehub"
+        target="_blank"
+        className="relative mt-10 block overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-4 transition-colors hover:bg-neutral-100"
+      >
+        <div
+          aria-hidden
+          className="absolute inset-y-0 left-1/2 w-[640px] -translate-x-1/2 opacity-60"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 1px 1px, rgb(212 212 216) 1px, transparent 0)",
+            backgroundSize: "12px 12px",
+          }}
+        />
+        <div className="relative text-center text-sm text-neutral-600">
+          <p>Built for the Damm × Engineering Hub Hackathon</p>
+          <span className="block font-semibold text-neutral-800">Barcelona · 23–24 May 2026</span>
+        </div>
+      </Link>
+
+      {/* Terms */}
+      <p className="mt-6 text-center text-xs font-medium text-neutral-500">
+        By continuing, you agree to the demo terms. Any button signs you in.
       </p>
     </div>
   )
