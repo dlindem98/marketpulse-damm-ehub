@@ -4,7 +4,7 @@ from .anomaly import AnomalyEvent
 from .chat import ChatMessage, ChatRequest
 from .drivers import Driver
 from .explain import ExplainViewRequest, ExplainViewSummary
-from .forecast import ForecastPoint, ForecastSeries
+from .forecast import CalendarEvent, ForecastPoint, ForecastSeries, PromoWindow
 from .gap import GapItem, KpiSummary
 from .meta import MetaResponse
 from .promos import PromoROI
@@ -13,6 +13,7 @@ from .simulate import SimulationRequest, SimulationResult
 
 __all__ = [
     "AnomalyEvent",
+    "CalendarEvent",
     "ChatMessage",
     "ChatRequest",
     "Driver",
@@ -20,6 +21,7 @@ __all__ = [
     "ExplainViewSummary",
     "ForecastPoint",
     "ForecastSeries",
+    "PromoWindow",
     "GapItem",
     "KpiSummary",
     "MetaResponse",

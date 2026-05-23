@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers import (
     aggregates,
     anomalies,
+    brief,
     chat,
     debug_data,
     drivers,
@@ -67,6 +68,7 @@ app.include_router(debug_data.router)
 app.include_router(anomalies.router)
 app.include_router(aggregates.router)
 app.include_router(news.router)
+app.include_router(brief.router)
 
 
 @app.get("/", include_in_schema=False)

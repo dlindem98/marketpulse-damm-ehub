@@ -82,6 +82,7 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, Cambria, "Times New Roman", serif;
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
@@ -101,6 +102,8 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1, "cv11" 1;
+  /* ElevenLabs-style body letter-spacing — subtle editorial loosening. */
+  letter-spacing: 0.009em;
 }
 
 h1, h2, h3, h4 { letter-spacing: -0.01em; }

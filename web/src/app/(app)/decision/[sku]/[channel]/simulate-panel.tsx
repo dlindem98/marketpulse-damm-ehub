@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import useSWR from "swr"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -37,14 +38,28 @@ const fetcher = async (url: string): Promise<ForecastSeries> => {
 }
 
 export function SimulatePanel({ sku, sub_channel }: { sku: string; sub_channel: string }) {
+  const search = useSearchParams()
+  // Prefill from URL (set by the Overview's "Try this play" CTA). Falls back
+  // to defaults so direct navigation still works.
+  const prefillMonths = (search.get("months") ?? "").split(",").filter(Boolean)
+  const prefillPromoRaw = search.get("promo") ?? ""
+  const prefillPromo = (PROMO_TYPES as readonly string[]).includes(prefillPromoRaw)
+    ? (prefillPromoRaw as PromoType)
+    : "multi-buy"
+  const prefillDiscount = Number(search.get("discount") ?? "")
+  const initialDiscount =
+    Number.isFinite(prefillDiscount) && prefillDiscount > 0 && prefillDiscount <= 30
+      ? prefillDiscount
+      : 10
+
   const { data: forecast } = useSWR<ForecastSeries>(
     `/api/forecast?sku=${encodeURIComponent(sku)}&sub_channel=${encodeURIComponent(sub_channel)}`,
     fetcher,
   )
 
-  const [discount, setDiscount] = useState(10)
-  const [promoType, setPromoType] = useState<PromoType>("multi-buy")
-  const [selectedMonths, setSelectedMonths] = useState<string[]>([])
+  const [discount, setDiscount] = useState(initialDiscount)
+  const [promoType, setPromoType] = useState<PromoType>(prefillPromo)
+  const [selectedMonths, setSelectedMonths] = useState<string[]>(prefillMonths)
   const [result, setResult] = useState<SimResult | null>(null)
   const [pending, setPending] = useState(false)
 

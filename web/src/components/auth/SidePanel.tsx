@@ -1,19 +1,7 @@
 /**
- * Right-side auth panel — direct port of Dub's
- *   apps/web/app/app.dub.co/(auth)/side-panel.tsx
- *
- * Structure:
- *   <div border-l bg-neutral-50, hidden under 900px>
- *     <conic-gradient blob at bottom-center>
- *     <Testimonial card>   - image + headline + "Read more"
- *     <CustomerLogos />    - sponsor grid at the bottom
- *   </div>
- *
- * For Ramp the "testimonial" is a self-description card (no fake customer
- * quotes — we're at a hackathon, not selling). Same visual rhythm as Dub.
+ * Right-side auth panel for the login page.
  */
 
-import Link from "next/link"
 import { Logo } from "@/components/brand/Logo"
 import { CustomerLogos } from "./CustomerLogos"
 import { cn } from "@/lib/utils"
@@ -42,10 +30,9 @@ export function SidePanel() {
         </div>
       ))}
 
-      {/* Top — testimonial-style card, vertically centered */}
+      {/* Top — product card, vertically centered */}
       <div className="relative flex grow items-center justify-center p-8 lg:p-14">
         <div className="flex flex-col gap-6">
-          {/* Card with the Ramp wedge mark as the hero visual */}
           <div className="relative overflow-hidden rounded-xl border border-neutral-900/10 bg-white">
             <div className="aspect-[16/12] w-full flex items-center justify-center bg-gradient-to-br from-neutral-50 to-neutral-200 relative">
               <Logo className="h-28 w-28 text-neutral-900" />
@@ -57,17 +44,9 @@ export function SidePanel() {
           </div>
 
           <p className="max-w-[370px] text-pretty text-xl font-medium text-neutral-900">
-            Forecast the UK book. Explain the gap. Recommend the play —
-            every Monday morning.
+            Sign in to review the UK book, understand forecast gaps, and
+            choose the next commercial play.
           </p>
-
-          <Link
-            href="https://github.com/GeriMan2004/marketpulse-damm-ehub"
-            target="_blank"
-            className="flex h-8 w-fit items-center rounded-lg bg-black/5 px-3 text-sm font-medium text-neutral-900 transition-[transform,background-color] duration-75 hover:bg-black/10 active:scale-[0.98]"
-          >
-            View on GitHub
-          </Link>
         </div>
       </div>
 

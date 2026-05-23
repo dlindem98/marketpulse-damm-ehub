@@ -19,14 +19,6 @@ const nextConfig: NextConfig = {
   // demoing the actual UI.
   devIndicators: false,
 
-  // Allow next/image to optimize the hackathon sponsor logos served from
-  // dammxeh.com's own CDN (we hot-link them rather than copy the files).
-  images: {
-    remotePatterns: [
-      { protocol: "https", hostname: "www.dammxeh.com", pathname: "/assets/**" },
-      { protocol: "https", hostname: "dammxeh.com", pathname: "/assets/**" },
-    ],
-  },
 }
 
 export default nextConfig

@@ -12,6 +12,13 @@ class GapItem(BaseModel):
     gap_hl: float                    # forecast - budget
     gap_pct: float                   # gap_hl / budget_hl
     confidence: Literal["low", "medium", "high"] = "medium"
+    # NEW: trailing gap_hl history (last ~12 periods, oldest→newest). Data is
+    # monthly in this repo, so this is a 12-month rolling window. May be shorter
+    # or empty if a SKU is new — frontend handles that gracefully.
+    history_hl: list[float] = []
+    # NEW: previous period's gap_pct (for "▼ -3.2pp vs last week" delta cell).
+    # None when there's no prior period in the joined data.
+    prev_week_gap_pct: float | None = None
 
 
 class KpiSummary(BaseModel):

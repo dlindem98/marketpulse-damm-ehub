@@ -27,6 +27,38 @@ router = APIRouter(prefix="/api", tags=["gap"])
 
 FORECAST = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "forecast.parquet"
 TARGETS  = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "targets.parquet"
+ACTUALS  = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "wide_monthly.parquet"
+
+# History window for the inbox sparkline. Data is monthly, so this is
+# 12 months even though we call the field `history_hl` (week was the
+# original plan — the schema name is kept stable).
+HISTORY_WINDOW = 12
+
+
+@lru_cache(maxsize=1)
+def _history_table() -> pl.DataFrame:
+    """(material_id, sub_channel, date, hist_gap_hl) — historical actual vs target gap."""
+    if not ACTUALS.is_file() or not TARGETS.is_file():
+        return pl.DataFrame(schema={
+            "material_id": pl.Utf8, "sub_channel": pl.Utf8,
+            "date": pl.Date, "hist_gap_hl": pl.Float64, "hist_gap_pct": pl.Float64,
+        })
+    actuals = (
+        pl.read_parquet(ACTUALS)
+          .select(["material_id", "sub_channel", "date", "Hl"])
+    )
+    tg = pl.read_parquet(TARGETS).select(["material_id", "sub_channel", "date", "target_hl"])
+    return (
+        actuals.join(tg, on=["material_id", "sub_channel", "date"], how="left")
+               .with_columns(
+                   hist_gap_hl=(pl.col("Hl") - pl.col("target_hl").fill_null(0.0)),
+                   hist_gap_pct=(
+                       (pl.col("Hl") - pl.col("target_hl").fill_null(0.0))
+                       / pl.col("target_hl").fill_null(0.0).clip(lower_bound=1)
+                   ).clip(lower_bound=-1.0, upper_bound=5.0),
+               )
+               .sort(["material_id", "sub_channel", "date"])
+    )
 
 
 @lru_cache(maxsize=1)
@@ -81,8 +113,29 @@ def get_gap(
     sort_col = "gap_pct" if sort.startswith("gap_pct") else "gap_hl"
     df = df.sort(sort_col, descending=sort.endswith("_desc"))
 
-    return [
-        GapItem(
+    hist = _history_table()
+
+    # Pre-group history into a {(material, sub_channel): [(date, gap_hl, gap_pct), ...]}
+    # lookup so the per-row history slice is O(1) per item.
+    hist_by_key: dict[tuple[str, str], list[tuple]] = {}
+    if hist.height > 0:
+        for r in hist.iter_rows(named=True):
+            key = (r["material_id"], r["sub_channel"])
+            hist_by_key.setdefault(key, []).append(
+                (r["date"], r["hist_gap_hl"], r["hist_gap_pct"])
+            )
+
+    rows = df.head(limit).iter_rows(named=True)
+    out: list[GapItem] = []
+    for r in rows:
+        key = (r["material_id"], r["sub_channel"])
+        series = hist_by_key.get(key, [])
+        # Take history strictly before the forecast row's date, last HISTORY_WINDOW.
+        cutoff = r["date"]
+        prior = [t for t in series if t[0] < cutoff][-HISTORY_WINDOW:]
+        history_hl = [float(t[1] or 0) for t in prior]
+        prev_pct = float(prior[-1][2]) if prior and prior[-1][2] is not None else None
+        out.append(GapItem(
             sku=r["material_id"],
             sub_channel=r["sub_channel"],
             period=r["date"].strftime("%b.%y"),
@@ -91,6 +144,7 @@ def get_gap(
             gap_hl=float(r["gap_hl"] or 0),
             gap_pct=float(r["gap_pct"] or 0),
             confidence=r["confidence"],
-        )
-        for r in df.head(limit).iter_rows(named=True)
-    ]
+            history_hl=history_hl,
+            prev_week_gap_pct=prev_pct,
+        ))
+    return out

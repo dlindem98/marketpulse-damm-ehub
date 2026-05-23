@@ -58,6 +58,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forecast/quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Forecast Quality */
+        get: operations["forecast_quality_api_forecast_quality_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/gap": {
         parameters: {
             query?: never;
@@ -324,6 +341,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/brief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Brief */
+        post: operations["post_brief_api_brief_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -361,6 +395,113 @@ export interface components {
             z_score: number;
             /** Candidate Cause */
             candidate_cause: string;
+        };
+        /** BriefAgendaItem */
+        BriefAgendaItem: {
+            /** Time */
+            time: string;
+            /** Title */
+            title: string;
+        };
+        /** BriefNewsItem */
+        BriefNewsItem: {
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+            /** Source Domain */
+            source_domain: string;
+            /** Published At */
+            published_at: string | null;
+        };
+        /** BriefRequest */
+        BriefRequest: {
+            /** Customer */
+            customer: string;
+            /**
+             * Customer Key
+             * @enum {string}
+             */
+            customer_key: "tesco" | "sainsburys" | "asda" | "morrisons" | "on_trade";
+            /** Meeting Weekday */
+            meeting_weekday: string;
+            /** Meeting In Days */
+            meeting_in_days: number;
+            /** Skus */
+            skus: components["schemas"]["BriefSkuInput"][];
+        };
+        /** BriefResponse */
+        BriefResponse: {
+            /** Customer */
+            customer: string;
+            /** Meeting Label */
+            meeting_label: string;
+            /** Headline */
+            headline: string;
+            /** Push Forward Title */
+            push_forward_title: string;
+            /** Push Forward Body */
+            push_forward_body: string;
+            /** Top Skus */
+            top_skus: components["schemas"]["BriefSkuRow"][];
+            /** Market Context */
+            market_context: components["schemas"]["BriefNewsItem"][];
+            /** Agenda */
+            agenda: components["schemas"]["BriefAgendaItem"][];
+        };
+        /**
+         * BriefSkuInput
+         * @description One at-risk SKU passed in by the frontend.
+         */
+        BriefSkuInput: {
+            /** Sku */
+            sku: string;
+            /** Sub Channel */
+            sub_channel: string;
+            /** Period */
+            period: string;
+            /** Sku Label */
+            sku_label: string;
+            /** Gap Pct */
+            gap_pct: number;
+            /** Gap Hl */
+            gap_hl: number;
+            /** Top Driver */
+            top_driver?: string | null;
+        };
+        /** BriefSkuRow */
+        BriefSkuRow: {
+            /** Sku Label */
+            sku_label: string;
+            /** Sub Channel */
+            sub_channel: string;
+            /** Period */
+            period: string;
+            /** Gap Pct */
+            gap_pct: number;
+            /** Gap Hl */
+            gap_hl: number;
+            /** Top Driver */
+            top_driver: string | null;
+            /** Recommended Ask */
+            recommended_ask: string | null;
+        };
+        /**
+         * CalendarEvent
+         * @description A calendar event (bank holiday, sport final, etc.) relevant for beer demand.
+         *
+         *     Rendered as a dashed vertical line with a label on the forecast chart.
+         */
+        CalendarEvent: {
+            /** Period */
+            period: string;
+            /** Label */
+            label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "holiday" | "sport" | "weather";
         };
         /** ChatMessage */
         ChatMessage: {
@@ -461,6 +602,10 @@ export interface components {
             granularity: "month" | "week";
             /** Points */
             points?: components["schemas"]["ForecastPoint"][];
+            /** Promo Windows */
+            promo_windows?: components["schemas"]["PromoWindow"][];
+            /** Events */
+            events?: components["schemas"]["CalendarEvent"][];
         };
         /** GapItem */
         GapItem: {
@@ -484,6 +629,13 @@ export interface components {
              * @enum {string}
              */
             confidence: "low" | "medium" | "high";
+            /**
+             * History Hl
+             * @default []
+             */
+            history_hl: number[];
+            /** Prev Week Gap Pct */
+            prev_week_gap_pct?: number | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -620,6 +772,62 @@ export interface components {
              * @enum {string}
              */
             confidence: "low" | "medium" | "high";
+            /**
+             * Lift History
+             * @default []
+             */
+            lift_history: number[];
+        };
+        /**
+         * PromoWindow
+         * @description A past or upcoming promo period for this SKU × sub_channel.
+         *
+         *     Used by the forecast chart to render shaded vertical bands so the user
+         *     can see *why* a past month over/underperformed, or what's coming up.
+         */
+        PromoWindow: {
+            /** Period Start */
+            period_start: string;
+            /** Period End */
+            period_end: string;
+            /** Label */
+            label: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "price" | "multibuy" | "display";
+        };
+        /** QualityPoint */
+        QualityPoint: {
+            /** Period */
+            period: string;
+            /** Predicted Hl */
+            predicted_hl: number;
+            /** Actual Hl */
+            actual_hl: number;
+            /** Error Pct */
+            error_pct: number;
+        };
+        /** QualityResponse */
+        QualityResponse: {
+            /** Points */
+            points?: components["schemas"]["QualityPoint"][];
+            /**
+             * Mape Pct
+             * @default 0
+             */
+            mape_pct: number;
+            /**
+             * Mape Recent Pct
+             * @default 0
+             */
+            mape_recent_pct: number;
+            /**
+             * N Points
+             * @default 0
+             */
+            n_points: number;
         };
         /** RecommendRequest */
         RecommendRequest: {
@@ -846,6 +1054,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ForecastSeries"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forecast_quality_api_forecast_quality_get: {
+        parameters: {
+            query: {
+                sku: string;
+                /** @description sub_channel — kept short for URL clarity */
+                channel: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QualityResponse"];
                 };
             };
             /** @description Validation Error */
@@ -1302,6 +1543,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RefreshResult"];
+                };
+            };
+        };
+    };
+    post_brief_api_brief_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BriefRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BriefResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

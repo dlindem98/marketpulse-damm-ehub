@@ -1,18 +1,16 @@
 /**
- * Authenticated app shell — direct port of Dub consumer dashboard.
- *
- * Source: apps/web/app/app.dub.co/(dashboard)/layout.tsx
- *       + apps/web/ui/layout/main-nav.tsx
+ * Authenticated app shell.
  *
  * Two-column card-on-tray frame:
  *   bg-neutral-200 tray
  *   ┌───────────────────┬───────────────────────────┐
- *   │  Sidebar (304px)  │  main content (white card)│
+ *   │  Sidebar (280px)  │  main content (white card)│
  *   └───────────────────┴───────────────────────────┘
  *
- * Market Pulse news lives INSIDE the Sidebar's areas card (see Sidebar.tsx),
- * not as a third column. Adding a third panel would crowd the main content
- * area, especially on the decision page where the forecast chart needs room.
+ * The 64px brand rail from Dub consumer was dropped — Ramp has a single
+ * product surface, so the rail was cargo-cult. Logo + workspace + nav +
+ * recents + news + profile all live in one panel now (see Sidebar.tsx).
+ * `min-content` grid template adapts to whatever width the sidebar uses.
  */
 
 import { Sidebar } from "@/components/shell/Sidebar"

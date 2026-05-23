@@ -19,6 +19,34 @@ import { formatHl, formatPercent, formatGBP } from "@/lib/format"
 import type { components } from "@/lib/api.gen"
 
 type RecResponse = components["schemas"]["RecommendationResponse"]
+type RecScenario = components["schemas"]["RecommendationScenario"]
+
+/**
+ * Build a one-line subtitle anchoring the abstract label
+ * ("Conservative") in something concrete from the data the LLM already
+ * returned. Approach (b) from Plan F — no backend change required.
+ *
+ *   "Avg lift 3.2% across 3 actions · medium confidence"
+ *   "Single bet · high confidence · evidence: <first evidence row>"
+ */
+function scenarioSubtitle(s: RecScenario): string | null {
+  const actions = s.actions ?? []
+  if (actions.length === 0) return null
+
+  const totalLift = actions.reduce((acc, a) => acc + (a.expected_lift_hl ?? 0), 0)
+  const avgLift = totalLift / actions.length
+  const conf = actions[0].confidence ?? "medium"
+  const evidence = actions[0].evidence?.[0]?.trim()
+
+  const head =
+    actions.length === 1
+      ? `Single play · ${formatHl(actions[0].expected_lift_hl)} lift · ${conf} confidence`
+      : `${actions.length} actions · avg ${formatHl(avgLift)} lift · ${conf} confidence`
+
+  // Prefer a real historical anchor if the LLM provided one in evidence.
+  if (evidence && /\d/.test(evidence)) return `Based on: ${evidence}`
+  return head
+}
 
 export async function OptionsPanel({
   sku, sub_channel, period,
@@ -52,6 +80,7 @@ export async function OptionsPanel({
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       {rec.scenarios.map((s) => {
         const isBalanced = s.label === "balanced"
+        const subtitle = scenarioSubtitle(s)
         return (
           <Card key={s.label} className={isBalanced ? "ring-2 ring-foreground/15" : ""}>
             <CardHeader>
@@ -60,6 +89,11 @@ export async function OptionsPanel({
                 {isBalanced && <Badge variant="default">Recommended</Badge>}
               </div>
               <CardDescription>{s.headline}</CardDescription>
+              {subtitle && (
+                <div className="text-[11px] text-muted-foreground/80 mt-1.5 leading-snug">
+                  {subtitle}
+                </div>
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               <div>

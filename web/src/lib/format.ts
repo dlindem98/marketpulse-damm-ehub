@@ -18,8 +18,8 @@
 export const formatHl = (v: number | null | undefined): string => {
   if (v === null || v === undefined || Number.isNaN(v)) return "—"
   const abs = Math.abs(v)
-  if (abs >= 1000) return `${(v / 1000).toFixed(1)}k Hl`
-  return `${v.toFixed(0)} Hl`
+  if (abs >= 1000) return `${(v / 1000).toFixed(1)}k hL`
+  return `${v.toFixed(0)} hL`
 }
 
 export const formatPercent = (v: number | null | undefined, decimals = 1): string => {
@@ -66,6 +66,28 @@ export const formatPeriodShort = (period: string): string => {
     return `${m} '${y.length === 2 ? y : y.slice(2)}`
   }
   return period
+}
+
+/**
+ * Human-friendly relative time (e.g. "just now", "2h ago", "3 Nov").
+ *
+ * For news cards, "fetched_at" rows, anywhere a raw ISO string would
+ * otherwise leak into the UI. Falls back to a short British date once
+ * we're more than ~5 weeks out.
+ */
+export function formatRelative(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date
+  const diff = Date.now() - d.getTime()
+  const minutes = Math.round(diff / 60_000)
+  if (minutes < 1) return "just now"
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.round(hours / 24)
+  if (days < 7) return `${days}d ago`
+  const weeks = Math.round(days / 7)
+  if (weeks < 5) return `${weeks}w ago`
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })
 }
 
 /** Severity tone for a gap percentage. Used by Badge variants + chart fills. */

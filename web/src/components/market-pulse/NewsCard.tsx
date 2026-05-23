@@ -44,13 +44,20 @@ export function NewsCard({
     article.source_domain,
   )}&sz=64`
 
+  // <button> + window.open so the browser doesn't show its status-bar
+  // URL preview on hover. Trade-off: loses right-click "Open in new tab"
+  // / middle-click behavior; for a sidebar news rail that's acceptable.
+  function open() {
+    window.open(article.url, "_blank", "noopener,noreferrer")
+  }
+
   return (
-    <a
-      href={article.url}
-      target="_blank"
-      rel="noopener noreferrer"
+    <button
+      type="button"
+      onClick={open}
+      aria-label={article.title}
       className={cn(
-        "group block rounded-lg border bg-white px-2.5 py-2 transition-all",
+        "group block w-full text-left rounded-lg border bg-white px-2.5 py-2 transition-all",
         "border-[color:var(--border)]",
         "hover:border-neutral-300 hover:shadow-xs",
         relevant && "border-l-2 border-l-[color:var(--positive)]",
@@ -73,6 +80,6 @@ export function NewsCard({
       <div className="text-[12px] font-medium leading-snug text-[color:var(--foreground)] line-clamp-2">
         {article.title}
       </div>
-    </a>
+    </button>
   )
 }
