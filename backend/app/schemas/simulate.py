@@ -11,8 +11,8 @@ class SimulationRequest(BaseModel):
     months: list[str]                              # e.g. ["Nov.26", "Dec.26"]
     discount_pct: float = Field(ge=0, le=100)
     promo_type: Literal[
-        "multi-pack", "price-cut", "feature", "display", "off-invoice", "other"
-    ] = "multi-pack"
+        "multi-buy", "price-cut", "rollback", "clearance", "listing"
+    ] = "multi-buy"
 
 
 class SimulationResult(BaseModel):

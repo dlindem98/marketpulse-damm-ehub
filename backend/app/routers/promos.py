@@ -1,8 +1,23 @@
-from fastapi import APIRouter, Query
+"""GET /api/promos/roi — reads from snapshots/promo_roi.parquet."""
+
+from functools import lru_cache
+from pathlib import Path
+
+import polars as pl
+from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas import PromoROI
 
 router = APIRouter(prefix="/api", tags=["promos"])
+
+PROMO_ROI = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "promo_roi.parquet"
+
+
+@lru_cache(maxsize=1)
+def _roi() -> pl.DataFrame:
+    if not PROMO_ROI.is_file():
+        raise HTTPException(status_code=503, detail="promo_roi.parquet missing — run make train")
+    return pl.read_parquet(PROMO_ROI)
 
 
 @router.get("/promos/roi", response_model=list[PromoROI])
@@ -10,18 +25,20 @@ def get_promo_roi(
     sub_channel: str | None = Query(default=None),
     top_k: int = Query(default=10, ge=1, le=50),
 ) -> list[PromoROI]:
-    """Mock ROI ranking. Real impl reads snapshots/promo_roi.parquet (CausalImpact)."""
-    items = [
-        PromoROI(promo_type="multi-pack", sub_channel="GROCERY",
-                 avg_lift_pct=0.094, avg_lift_hl=352.0,
-                 estimated_cost=12_400, roi=1.74, n_observations=6, confidence="high"),
-        PromoROI(promo_type="price-cut", sub_channel="GROCERY",
-                 avg_lift_pct=0.071, avg_lift_hl=268.0,
-                 estimated_cost=9_800, roi=1.31, n_observations=5, confidence="medium"),
-        PromoROI(promo_type="feature", sub_channel="GROCERY",
-                 avg_lift_pct=0.039, avg_lift_hl=147.0,
-                 estimated_cost=4_200, roi=1.68, n_observations=4, confidence="medium"),
-    ]
+    df = _roi()
     if sub_channel:
-        items = [i for i in items if i.sub_channel == sub_channel]
-    return items[:top_k]
+        df = df.filter(pl.col("sub_channel") == sub_channel)
+    df = df.sort("roi", descending=True, nulls_last=True)
+    return [
+        PromoROI(
+            promo_type=r["promo_type"],
+            sub_channel=r["sub_channel"],
+            avg_lift_pct=float(r["avg_lift_pct"]),
+            avg_lift_hl=float(r["avg_lift_hl"]),
+            estimated_cost=float(r["estimated_cost"]) if r["estimated_cost"] else None,
+            roi=float(r["roi"]) if r["roi"] is not None else None,
+            n_observations=int(r["n_observations"]),
+            confidence=r["confidence"],
+        )
+        for r in df.head(top_k).iter_rows(named=True)
+    ]

@@ -238,6 +238,59 @@ def aggregate_monthly(joined: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+def derive_future_targets(monthly: pl.DataFrame, horizon_months: int = 9) -> pl.DataFrame:
+    """Extend the targets table into the next `horizon_months` for every series.
+
+    For each (material_id, sub_channel) and each future month, target_hl =
+    same-month-prior-year actual, or trailing 3-month median if not available.
+    """
+    last_date = monthly["date"].max()
+    future_dates = []
+    from datetime import date as date_t
+    y, m = last_date.year, last_date.month
+    for _ in range(horizon_months):
+        m += 1
+        if m > 12: m = 1; y += 1
+        future_dates.append(date_t(y, m, 1))
+
+    series_keys = monthly.select(["material_id", "sub_channel"]).unique()
+    # Cross join series × future_dates
+    future_rows = []
+    for d in future_dates:
+        for k in series_keys.iter_rows(named=True):
+            future_rows.append({
+                "material_id": k["material_id"],
+                "sub_channel": k["sub_channel"],
+                "date": d,
+            })
+    future = pl.DataFrame(future_rows)
+
+    # Same-month-prior-year lookup
+    prior_year = monthly.select(
+        pl.col("material_id"),
+        pl.col("sub_channel"),
+        pl.col("date").dt.offset_by("12mo").alias("date"),
+        pl.col("Hl").alias("prior_year_hl"),
+    )
+    future = future.join(prior_year, on=["material_id", "sub_channel", "date"], how="left")
+
+    # Trailing 3-month median per series for cold-start
+    trailing_window = (
+        monthly.sort(["material_id", "sub_channel", "date"])
+        .group_by(["material_id", "sub_channel"], maintain_order=True)
+        .agg(
+            last_3_median=pl.col("Hl").tail(3).median(),
+        )
+    )
+    future = future.join(trailing_window, on=["material_id", "sub_channel"], how="left")
+    future = future.with_columns(
+        target_hl=pl.coalesce(["prior_year_hl", "last_3_median"]).fill_null(0.0),
+        target_source=pl.when(pl.col("prior_year_hl").is_not_null()).then(pl.lit("prior_year"))
+                        .otherwise(pl.lit("trailing_median")),
+    ).select(["material_id", "sub_channel", "date", "target_hl", "target_source"])
+    return future
+
+
 def derive_targets(monthly: pl.DataFrame) -> pl.DataFrame:
     """Build a target_hl series per (material, sub_channel, date).
 
@@ -806,6 +859,11 @@ def main() -> int:
     validate_monthly(monthly)
     targets = derive_targets(monthly)
     validate_targets(targets, monthly)
+
+    # Also generate future targets for the forecast horizon (9 months)
+    future_targets = derive_future_targets(monthly, horizon_months=9)
+    targets = pl.concat([targets, future_targets], how="vertical")
+    print(f"  · future targets: +{len(future_targets):,} rows; total targets: {len(targets):,}")
 
     print("\n[8/8] Parsing promos (per-retailer parsers + content-based classifier)")
     promos = parse_promos_all()
