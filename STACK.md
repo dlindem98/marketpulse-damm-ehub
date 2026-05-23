@@ -46,7 +46,12 @@ Every choice has a reason tied to a judging criterion. ⭐ = primary pick.
 - ⭐ **[huggingface_hub InferenceClient](https://huggingface.co/docs/huggingface_hub/guides/inference)** — native HF client, OpenAI-compatible.
 - ⭐ **[smolagents](https://github.com/huggingface/smolagents)** — lightweight HF agent. Tools: `forecast()`, `simulate_promo()`, `compare_vs_budget()`, `recommend()`.
 - ⭐ **[Instructor](https://github.com/jxnl/instructor)** — Pydantic-typed LLM outputs → reliable structured recommendations (the 3 scenarios).
-- ⭐ Primary model: **`moonshotai/Kimi-K2.6`** (Novita provider, 1.1T params, strongest agentic reasoning on HF Inference today). Fallback: **`meta-llama/Llama-3.3-70B-Instruct`** (Groq, fast & cheap). Switchable via `LLM_PRIMARY` env flag — see [AGENT.md](AGENT.md).
+- ⭐ Two-profile routing (live-benchmarked from EHubBarcelona org token):
+  - **`fast`** = `meta-llama/Llama-3.3-70B-Instruct` via **Groq** (0.86s) → chat, tool-call loops, explain-view
+  - **`deep`** = `moonshotai/Kimi-K2-Instruct` via **Novita** (5.0s, very specific CPG outputs) → `/api/recommend` only
+  - **`fallback`** = `Qwen/Qwen2.5-72B-Instruct` (auto, 2.4s) on any 5xx/429
+  - `call_with_fallback()` helper handles failover automatically — see [AGENT.md](AGENT.md).
+  - **Kimi K2.6 (thinking variant) is explicitly NOT used** — outputs `reasoning_content` instead of `content`, 16s+ with empty finals, wrong for live demo.
 
 ---
 
@@ -137,10 +142,13 @@ Forecasting    : MLForecast(LightGBM) + StatsForecast(AutoARIMA)
 Causal         : tfcausalimpact (per-promo lift)
 Explainable    : SHAP (deviation drivers) + Alibi (counterfactuals)
                  + anomaly detection on history (z-score / Merlion)
-LLM layer      : HF InferenceClient → Kimi-K2.6 (Novita) — Llama-3.3 fallback
+LLM layer      : HF InferenceClient — two-profile routing
+                   fast  = Llama-3.3-70B (Groq, 0.86s)  → chat, tools, explain
+                   deep  = Kimi-K2-Instruct (Novita, 5s) → /api/recommend only
+                   fb    = Qwen-2.5-72B (auto)          → 429/5xx fallback
                  + smolagents (forecast/simulate_promo/compare_budget tools)
-                 + Instructor (3-scenario structured recommendations)
-                 → full design in AGENT.md
+                 + Instructor (3-scenario structured recommendations on `deep`)
+                 → full design + benchmarks in AGENT.md
 Storage        : Parquet (raw + snapshots) + MongoDB (live state via MCP)
 
 Backend        : FastAPI + Pydantic v2 + Uvicorn + SSE for chat
@@ -167,7 +175,7 @@ Dev            : uv + pnpm + ruff + biome
 3. **Hierarchical reconciliation** makes the forecast usable as a business plan — CPG judges recognize this immediately.
 4. **tfcausalimpact** delivers the promotion analysis checklist item in <50 LOC.
 5. **SHAP + Alibi** map directly to *explain deviations* and *recommend actions* scoring criteria.
-6. **smolagents + Kimi K2.6 + Instructor** = structured 3-scenario business recommendations, not free-form chat output. Kimi K2 is purpose-built for agentic tool-use; Llama-3.3 stays as a fast fallback.
+6. **Two-profile LLM routing** = best of both worlds. Llama-3.3 via Groq (0.86s) for everything latency-sensitive — chat, tool-call loops, explain-view. Kimi-K2-Instruct via Novita (5s) only on the `/api/recommend` endpoint, where output quality is judged on "actionability" and the user expects a moment of thinking. Live benchmark, not a guess.
 7. **FastAPI** keeps every Python ML call intact while exposing a clean typed REST surface.
 8. **React + shadcn + Magic UI + Tremor** gives a Linear/Vercel-quality UI in a fraction of the time of building from scratch — all MIT-licensed, safe for a public repo, flat aesthetic that doesn't fight a data dashboard.
 9. **MongoDB MCP** lets Claude query state during development without writing glue code.

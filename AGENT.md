@@ -6,26 +6,67 @@ The LLM/agent layer is what turns numeric output into *commercial recommendation
 
 ## 🤖 Models (HF Inference Providers)
 
-| Role | Model | Provider | Why |
-|---|---|---|---|
-| **Primary** | `moonshotai/Kimi-K2.6` | Novita | 1.1T params, strong agentic reasoning, latest in K2 family. Great at tool-call orchestration. |
-| **Fallback** | `meta-llama/Llama-3.3-70B-Instruct` | Groq | Fast, cheap, more than enough for structured output. Trigger when Kimi 429s or latency >5s. |
-| Embeddings (if RAG added) | `BAAI/bge-m3` | HF Inference | Multilingual SOTA. |
+**Two-model routing — speed where it matters, depth where it counts.** Live-benchmarked from the EHubBarcelona org token (see commit history for the numbers).
 
-The fallback switch is a single env flag: `LLM_PRIMARY=kimi|llama`. Both clients share the same `InferenceClient` API.
+| Profile | Model | Provider | Latency | Used for |
+|---|---|---|---|---|
+| **`fast`** | `meta-llama/Llama-3.3-70B-Instruct` | Groq | **0.86s** ⚡ | `/api/chat`, `/api/explain-view`, all smolagents tool-call loops |
+| **`deep`** | `moonshotai/Kimi-K2-Instruct` | Novita | 5.0s | `/api/recommend` only — the 3-scenario money endpoint |
+| **`fallback`** | `Qwen/Qwen2.5-72B-Instruct` | auto | 2.4s | Any 5xx / 429 / timeout |
+| Embeddings *(if RAG added later)* | `BAAI/bge-m3` | HF | — | Multilingual SOTA |
+
+### Why this split
+
+- **Sub-second latency is non-negotiable** for the live agent chat. Groq makes a 4-tool-call loop feel like one round-trip (~3s) instead of a coffee break (~20s with a deep model).
+- **`/api/recommend` is the screen judges score "actionability" on** — the single criterion most explicitly named in the brief. Kimi K2-Instruct outputs use real CPG vocabulary ("off-invoice promotion", "in-aisle barkers", "incremental display"), specific budgets, and conditional structures. 4s extra on the highest-stakes screen is the best trade in the stack.
+- **Kimi K2.6 (thinking variant) is explicitly NOT used** — it spends tokens on `reasoning_content`, takes 16s+ to produce any content, and routinely cuts off at `finish_reason: length` with 0 chars of actual answer. Save thinking models for offline tasks.
+
+### Code
 
 ```python
 from huggingface_hub import InferenceClient
+from huggingface_hub.utils import HfHubHTTPError
 import os
 
 MODELS = {
-    "kimi":  "moonshotai/Kimi-K2.6",
-    "llama": "meta-llama/Llama-3.3-70B-Instruct",
+    "fast":     ("meta-llama/Llama-3.3-70B-Instruct", "groq"),
+    "deep":     ("moonshotai/Kimi-K2-Instruct",       "novita"),
+    "fallback": ("Qwen/Qwen2.5-72B-Instruct",         None),
 }
 
-def get_client() -> InferenceClient:
-    model = MODELS[os.getenv("LLM_PRIMARY", "kimi")]
-    return InferenceClient(model=model, token=os.environ["HF_TOKEN"])
+def get_client(profile: str = "fast") -> InferenceClient:
+    model, provider = MODELS[profile]
+    kw = {"model": model, "token": os.environ["HF_TOKEN"]}
+    if provider:
+        kw["provider"] = provider
+    return InferenceClient(**kw)
+
+def call_with_fallback(profile: str, **chat_kwargs):
+    """Try the chosen profile; on provider error fall through Llama→Qwen."""
+    chain = [profile, "fast", "fallback"]
+    # dedupe while preserving order
+    chain = list(dict.fromkeys(chain))
+    last_err = None
+    for p in chain:
+        try:
+            return get_client(p).chat_completion(**chat_kwargs)
+        except (HfHubHTTPError, TimeoutError) as e:
+            last_err = e
+            continue
+    raise last_err
+```
+
+### Usage map
+
+```python
+# /api/chat  (smolagents loop)
+resp = call_with_fallback("fast", messages=msgs, max_tokens=512)
+
+# /api/explain-view
+resp = call_with_fallback("fast", messages=msgs, max_tokens=300)
+
+# /api/recommend  (3-scenario, via Instructor)
+resp = call_with_fallback("deep", messages=msgs, max_tokens=800, response_format=...)
 ```
 
 ---
@@ -218,7 +259,7 @@ class ExplainViewSummary(BaseModel):
 
 ---
 
-## 🧠 System prompt (Kimi K2.6 / Llama 3.3)
+## 🧠 System prompt (used by all profiles)
 
 ```
 You are MarketPulse, a commercial analyst for Damm UK. You help the UK
@@ -279,14 +320,14 @@ gap_closed_pct as the expected_gap_closed_pct.
 Output JSON matching the RecommendationResponse schema.
 ```
 
-The Instructor wrapper enforces the schema:
+The Instructor wrapper enforces the schema (uses the `deep` profile = Kimi K2-Instruct):
 
 ```python
 import instructor
-from huggingface_hub import InferenceClient
+from app.services.llm import get_client
 
 client = instructor.from_openai(
-    InferenceClient(model=MODELS["kimi"], token=HF_TOKEN).as_openai(),
+    get_client("deep").as_openai(),
     mode=instructor.Mode.JSON,
 )
 
@@ -376,22 +417,24 @@ bubble; `tool_result` updates the chip from "running…" to its `result_summary`
 
 | Failure | Detection | Fallback |
 |---|---|---|
-| Kimi 429 / >5s latency | `httpx` timeout / status | Switch `LLM_PRIMARY=llama` for this request |
+| Novita 429 / 5xx (deep profile) | `HfHubHTTPError` | `call_with_fallback` drops to `fast` (Llama-Groq) → `fallback` (Qwen) automatically |
+| Groq 429 / 5xx (fast profile) | `HfHubHTTPError` | Drops to `fallback` (Qwen, auto provider) |
 | LLM hallucinated SKU not in master | Validate against `meta_lookup` | Re-prompt with `Available SKUs: [...]` |
 | LLM JSON doesn't match schema | Instructor retries with validation error in context | After 2 retries, return canned "couldn't generate, here is the raw forecast" |
 | Tool returned empty (e.g. no past promos on channel) | Empty list check in tool | Agent told: "No historical promos on this channel — recommend conservatively" |
-| HF Inference down | Health-check on `/api/meta` | Switch every endpoint to **snapshot mode** (pre-baked Parquet recs) |
+| All providers down | Health-check on `/api/meta` | Switch every endpoint to **snapshot mode** (pre-baked Parquet recs) |
 | All else fails | — | Hardcoded recommendation per hero SKU in `backend/app/services/agent.py:HERO_FALLBACK` |
 
 ---
 
 ## ✅ Definition of done (agent slice)
 
-- [ ] `moonshotai/Kimi-K2.6` reachable via `InferenceClient` with the org HF token
+- [ ] `moonshotai/Kimi-K2-Instruct` (Novita) and `meta-llama/Llama-3.3-70B-Instruct` (Groq) both reachable from the EHubBarcelona org token (verified at smoke-test: 5.0s and 0.86s respectively)
+- [ ] `call_with_fallback()` helper exercised end-to-end (deep → fast → fallback)
 - [ ] All 7 tools implemented and unit-tested with mocked services
 - [ ] All Pydantic schemas in `backend/app/schemas/`, re-used by Instructor + FastAPI
-- [ ] `/api/recommend` returns valid `RecommendationResponse` 100% of the time (Instructor + retries)
-- [ ] `/api/explain-view` returns 3 bullets + next action
-- [ ] `/api/chat` SSE stream emits typed events; FE renders tool-call chips
-- [ ] Fallback to Llama-3.3 toggles on a single env flag and is exercised at H22 rehearsal
+- [ ] `/api/recommend` returns valid `RecommendationResponse` 100% of the time using `deep` profile (Instructor + retries on schema mismatch)
+- [ ] `/api/explain-view` returns 3 bullets + next action using `fast` profile (sub-2s)
+- [ ] `/api/chat` SSE stream emits typed events using `fast` profile; FE renders tool-call chips
+- [ ] Provider failover is exercised at H22 rehearsal (manually kill Novita route → confirm Llama serves the recommendation)
 - [ ] Hero-SKU canned fallback exists and renders identically to a live response

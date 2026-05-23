@@ -145,7 +145,7 @@ Everyone converges H22–H24 on the demo SKU narrative.
 - Pydantic schemas in `backend/app/schemas/` (ForecastSeries, GapItem, Driver, PromoROI, SimulationResult, RecommendationResponse, ExplainViewSummary)
 - All 7 smolagents tools implemented (`forecast`, `compare_vs_budget`, `explain_gap`, `simulate_promo`, `rank_promos`, `anomalies`, `meta_lookup`) — wired to `/api/simulate`, `/api/recommend`, etc.
 - Alibi counterfactual: minimum feature change to close the gap
-- HF `InferenceClient` configured for **Kimi K2.6** (Novita) primary, **Llama 3.3 70B** (Groq) fallback via `LLM_PRIMARY` env flag
+- HF `InferenceClient` configured with **two-profile routing**: `fast` = Llama-3.3-70B (Groq, 0.86s) for chat/tools/explain · `deep` = Kimi-K2-Instruct (Novita, 5s) for `/api/recommend` only · `fallback` = Qwen-2.5-72B. `call_with_fallback()` handles 429/5xx automatically. See [AGENT.md](AGENT.md).
 - Instructor wrapping enforces `RecommendationResponse` (3-scenario) schema
 - `/api/chat` SSE streaming with typed events (`thought` / `tool_call` / `tool_result` / `token` / `done`)
 - **Exit:** every backend endpoint returns real, useful data.
