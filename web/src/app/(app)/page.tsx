@@ -19,7 +19,7 @@ import { PageWidthWrapper } from "@/components/shell/PageWidthWrapper"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Sparkline } from "@/components/ui/sparkline"
 import { serverFetch } from "@/lib/api"
-import { formatHl, formatPercent, gapTone, formatPeriod } from "@/lib/format"
+import { formatGBP, formatPercent, gapTone, formatPeriod } from "@/lib/format"
 import { skuLabel, channelLabel } from "@/lib/meta"
 import {
   CUSTOMER_LABELS,
@@ -30,10 +30,15 @@ import {
 } from "@/lib/calls"
 import { MonthCalendar } from "@/components/inbox/MonthCalendar"
 import { AtRiskDrawer } from "@/components/inbox/AtRiskDrawer"
+import { UkPulseHero } from "@/components/inbox/UkPulseHero"
+import { RollupChips } from "@/components/inbox/RollupChips"
 import type { components } from "@/lib/api.gen"
 
 type GapItem = components["schemas"]["GapItem"]
 type Meta = components["schemas"]["MetaResponse"]
+type Pulse = components["schemas"]["Pulse"]
+type BrandRollup = components["schemas"]["BrandRollup"]
+type SubChannelRollup = components["schemas"]["SubChannelRollup"]
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
@@ -60,10 +65,30 @@ export default async function Page({
 }
 
 async function Inbox({ customer }: { customer: Customer | null }) {
-  const [gaps, meta] = await Promise.all([
+  // Parallel-fetch everything the home page needs. Pulse + rollups are
+  // scoped to the same period the pulse endpoint picks (current/upcoming
+  // month) so the brand & channel chips agree with the headline number.
+  const [gaps, meta, pulse, brands, channels] = await Promise.all([
     serverFetch<GapItem[]>("/api/gap"),
     serverFetch<Meta>("/api/meta"),
+    serverFetch<Pulse>("/api/pulse").catch(() => null),
+    serverFetch<BrandRollup[]>("/api/forecast/by-brand?limit=8").catch(() => []),
+    serverFetch<SubChannelRollup[]>("/api/forecast/by-sub-channel").catch(() => []),
   ])
+
+  const pulsePeriod = pulse?.period
+  // Scope the rollups to the pulse period if we have one — otherwise show
+  // the full-horizon view as a fallback.
+  const [brandsScoped, channelsScoped] = pulsePeriod
+    ? await Promise.all([
+        serverFetch<BrandRollup[]>(
+          `/api/forecast/by-brand?limit=8&period=${encodeURIComponent(pulsePeriod)}`,
+        ).catch(() => brands),
+        serverFetch<SubChannelRollup[]>(
+          `/api/forecast/by-sub-channel?period=${encodeURIComponent(pulsePeriod)}`,
+        ).catch(() => channels),
+      ])
+    : [brands, channels]
 
   // For the drawer — filter the at-risk SKUs to the active customer.
   const negatives = customer
@@ -82,14 +107,45 @@ async function Inbox({ customer }: { customer: Customer | null }) {
     : null
 
   return (
-    <div className="h-full flex flex-col min-h-0 pb-2">
-      <header className="shrink-0">
-        <h1 className="font-serif text-[44px] leading-[1.05] tracking-[-0.02em] text-neutral-900">
+    <div className="h-full flex flex-col min-h-0 pb-2 gap-5">
+      <header className="shrink-0 flex items-baseline justify-between gap-4 flex-wrap">
+        <h1 className="font-serif text-[40px] leading-[1.05] tracking-[-0.02em] text-neutral-900">
           Welcome back, Sarah
         </h1>
+        <p className="font-serif text-[32px] leading-none tracking-[-0.01em] text-neutral-900">
+          {new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
+        </p>
       </header>
 
-      {/* Calendar is the entire page below the welcome line. */}
+      {/* Portfolio strip — pulse hero on the left, brand + channel rollups
+          stacked on the right. Reads as "headline → evidence" left-to-right.
+          Stacks vertically on narrow viewports. */}
+      <div className="shrink-0 grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-y-6 gap-x-0 items-stretch">
+        {pulse && <UkPulseHero pulse={pulse} />}
+        <div className="flex flex-col gap-5 min-w-0">
+          <RollupChips
+            heading="Gap vs target · by brand"
+            items={brandsScoped.map((b) => ({
+              label: titleCaseBrand(b.brand),
+              gap_pct: b.gap_pct,
+              gap_gbp: b.gap_gbp,
+            }))}
+            emptyHint="No brand data for this period."
+          />
+          <RollupChips
+            heading="Gap vs target · by channel"
+            items={channelsScoped.map((c) => ({
+              label: c.name,
+              gap_pct: c.gap_pct,
+              gap_gbp: c.gap_gbp,
+            }))}
+            emptyHint="No channel data for this period."
+          />
+        </div>
+      </div>
+
+      {/* Calendar — Sarah's day-by-day call schedule sits underneath the
+          portfolio view so the brief-aligned headline numbers lead. */}
       <MonthCalendar gaps={gaps} activeCustomer={customer} />
 
       {/* Bottom-sheet drawer — only mounted when a customer is selected. */}
@@ -184,8 +240,12 @@ function InboxRow({ gap, meta }: { gap: GapItem; meta: Meta }) {
               className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-medium tabular-nums ${TONE_PILL[tone]}`}
             >
               <span>{formatPercent(gap.gap_pct, 0)}</span>
-              <span className="opacity-50">·</span>
-              <span>{formatHl(gap.gap_hl)}</span>
+              {gap.gap_gbp != null && (
+                <>
+                  <span className="opacity-50">·</span>
+                  <span>≈ {formatGBP(gap.gap_gbp)}</span>
+                </>
+              )}
             </div>
             <ArrowRight className="h-4 w-4 text-neutral-400 transition-colors group-hover:text-neutral-700" />
           </div>
@@ -193,6 +253,15 @@ function InboxRow({ gap, meta }: { gap: GapItem; meta: Meta }) {
       </Link>
     </li>
   )
+}
+
+/** Brand names ship in screaming caps from the source data. */
+function titleCaseBrand(brand: string): string {
+  return brand
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => (w.length ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ")
 }
 
 function InboxSkeleton() {

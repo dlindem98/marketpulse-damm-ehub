@@ -14,15 +14,18 @@
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { ForecastChart } from "@/components/charts/ForecastChart"
+import { ExternalSignals } from "@/components/charts/ExternalSignals"
 import { serverFetch } from "@/lib/api"
 import { driverLabel } from "@/lib/driver-labels"
-import { formatHl, formatPercent, gapColor } from "@/lib/format"
+import { confidenceLabel, formatGBP, formatHl, formatPercent, gapColor } from "@/lib/format"
 import type { components } from "@/lib/api.gen"
+import { GranularityToggle } from "./granularity-toggle"
 
 type ForecastSeries = components["schemas"]["ForecastSeries"]
 type ForecastPoint = components["schemas"]["ForecastPoint"]
 type Driver = components["schemas"]["Driver"]
 type ExplainView = components["schemas"]["ExplainViewSummary"]
+type ExternalSignalsT = components["schemas"]["ExternalSignals"]
 type GapItem = components["schemas"]["GapItem"]
 type RecResponse = components["schemas"]["RecommendationResponse"]
 type RecScenario = components["schemas"]["RecommendationScenario"]
@@ -55,18 +58,20 @@ const SCENARIO_META: Record<
 }
 
 export async function DiagnosisPanel({
-  sku, sub_channel, currentGap, targetPeriod,
+  sku, sub_channel, currentGap, targetPeriod, granularity,
 }: {
   sku: string
   sub_channel: string
   currentGap: GapItem | null
   targetPeriod: string | undefined
+  granularity: "month" | "week"
 }) {
-  const q = `?sku=${encodeURIComponent(sku)}&sub_channel=${encodeURIComponent(sub_channel)}`
+  const baseQ = `?sku=${encodeURIComponent(sku)}&sub_channel=${encodeURIComponent(sub_channel)}`
+  const fcQ = `${baseQ}&granularity=${granularity}`
 
-  const [forecast, drivers, rec] = await Promise.all([
-    serverFetch<ForecastSeries>(`/api/forecast${q}`),
-    serverFetch<Driver[]>(`/api/drivers${q}`),
+  const [forecast, drivers, rec, signals] = await Promise.all([
+    serverFetch<ForecastSeries>(`/api/forecast${fcQ}`),
+    serverFetch<Driver[]>(`/api/drivers${baseQ}`),
     targetPeriod
       ? serverFetch<RecResponse>("/api/recommend", {
           method: "POST",
@@ -74,12 +79,17 @@ export async function DiagnosisPanel({
           body: JSON.stringify({ sku, sub_channel, period: targetPeriod }),
         }).catch(() => null)
       : Promise.resolve(null),
+    targetPeriod
+      ? serverFetch<ExternalSignalsT>(
+          `/api/external-signals${baseQ}&period=${encodeURIComponent(targetPeriod)}`,
+        ).catch(() => null)
+      : Promise.resolve(null),
   ])
 
-  // Widen to ±4 months around target so the chart has shape instead of
-  // looking like a flat line on 4 sparse points. Narrower radius left the
-  // chart feeling empty.
-  const focused = focusAroundTarget(forecast.points ?? [], targetPeriod, 4)
+  // Monthly: ±4 months around target. Weekly: ~12 weeks centred on target.
+  // Both keep the chart populated without dragging the full horizon in.
+  const radius = granularity === "month" ? 4 : 6
+  const focused = focusAroundTarget(forecast.points ?? [], targetPeriod, radius, granularity)
 
   const totalForecastHl = focused.reduce((s, p) => s + p.point, 0)
   const topDrivers = drivers.slice(0, 5).map((d) => ({
@@ -148,7 +158,11 @@ export async function DiagnosisPanel({
               </span>
             ) : "—"
           }
-          sub={currentGap ? formatHl(currentGap.gap_hl) : undefined}
+          sub={
+            currentGap && currentGap.gap_gbp != null
+              ? `≈ ${formatGBP(currentGap.gap_gbp)}`
+              : undefined
+          }
         />
       </div>
 
@@ -173,15 +187,18 @@ export async function DiagnosisPanel({
                   : "Median forecast with 80% confidence band"}
               </p>
             </div>
-            {currentGap && (
-              <span
-                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-wide capitalize ${
-                  CONFIDENCE_CHIP[currentGap.confidence]
-                }`}
-              >
-                {currentGap.confidence} confidence
-              </span>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {currentGap && (
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-wide ${
+                    CONFIDENCE_CHIP[currentGap.confidence]
+                  }`}
+                >
+                  {confidenceLabel(currentGap.confidence)}
+                </span>
+              )}
+              <GranularityToggle value={granularity} />
+            </div>
           </header>
           <div className="px-3 pb-3 pt-1">
             <ForecastChart
@@ -197,6 +214,7 @@ export async function DiagnosisPanel({
           )}
         </section>
 
+        <div className="flex flex-col gap-4">
         <section className="rounded-2xl border border-neutral-200 bg-white">
           <header className="px-5 pt-4 pb-2">
             <h3 className="text-[13px] font-semibold text-neutral-900">Top drivers</h3>
@@ -237,6 +255,12 @@ export async function DiagnosisPanel({
             })}
           </div>
         </section>
+
+        {/* External context — small block listing the non-Damm signals the
+            forecast already consumes. Brief explicitly values visible
+            enrichment. */}
+        <ExternalSignals signals={signals} />
+        </div>
       </div>
 
       {/* Three plays the LLM proposed. Each card → Simulator prefilled with
@@ -380,21 +404,57 @@ function KpiCard({
 }
 
 /**
- * Slice the forecast points to a `±radius` window around the target period.
- * Returns the full series if the target isn't found (defensive — shouldn't
- * happen when caller already validated `currentGap`).
+ * Slice the forecast points to a window centred on the target period.
+ *
+ * Monthly: targets like "Nov.26" match the `period` string directly, take
+ * `radius` months on each side.
+ *
+ * Weekly: target period is still a month label ("Nov.26"), so we find the
+ * first week whose Monday falls inside that month and take `radius` weeks
+ * around it. ~12 weeks gives 3 months of context — enough to see the
+ * targeted month plus the run-up.
  */
 function focusAroundTarget(
   points: ForecastPoint[],
   targetPeriod: string | undefined,
   radius: number,
+  granularity: "month" | "week" = "month",
 ): ForecastPoint[] {
   if (!targetPeriod || points.length === 0) return points
-  const idx = points.findIndex((p) => p.period === targetPeriod)
+
+  let idx = -1
+  if (granularity === "month") {
+    idx = points.findIndex((p) => p.period === targetPeriod)
+  } else {
+    const targetMonth = monthFromPeriod(targetPeriod)
+    if (targetMonth) {
+      idx = points.findIndex((p) => {
+        const d = new Date(p.period_start)
+        return d.getUTCFullYear() === targetMonth.year && d.getUTCMonth() + 1 === targetMonth.month
+      })
+    }
+  }
   if (idx < 0) return points
   const start = Math.max(0, idx - radius)
   const end = Math.min(points.length, idx + radius + 1)
   return points.slice(start, end)
+}
+
+/** Parse "Nov.26" or "2026-11" → {year, month} (1-indexed). */
+function monthFromPeriod(period: string): { year: number; month: number } | null {
+  if (period.includes(".")) {
+    const months = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"]
+    const [m, y] = period.toLowerCase().split(".")
+    const month = months.indexOf(m) + 1
+    if (month === 0) return null
+    const year = parseInt(y.length === 2 ? `20${y}` : y, 10)
+    return Number.isFinite(year) ? { year, month } : null
+  }
+  if (period.includes("-")) {
+    const [y, m] = period.split("-").map((n) => parseInt(n, 10))
+    return Number.isFinite(y) && Number.isFinite(m) ? { year: y, month: m } : null
+  }
+  return null
 }
 
 function humanPeriod(period: string): string {

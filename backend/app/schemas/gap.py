@@ -19,6 +19,10 @@ class GapItem(BaseModel):
     # NEW: previous period's gap_pct (for "▼ -3.2pp vs last week" delta cell).
     # None when there's no prior period in the joined data.
     prev_week_gap_pct: float | None = None
+    # NEW: gap_hl translated to GBP using the SKU × sub_channel average
+    # gross price per hL (see backend/app/services/pricing.py). None when
+    # we have no historical revenue/Hl rows for this slice.
+    gap_gbp: float | None = None
 
 
 class KpiSummary(BaseModel):

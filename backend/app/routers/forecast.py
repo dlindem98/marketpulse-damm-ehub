@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from app.schemas import ForecastPoint, ForecastSeries
 from app.services.calendar import build_events
 from app.services.promo_windows import build_promo_windows
+from app.services.weekly_split import MonthlyPoint, split_monthly_to_weekly
 
 router = APIRouter(prefix="/api", tags=["forecast"])
 
@@ -42,28 +43,59 @@ def get_forecast(
     horizon: int = Query(default=9, ge=1, le=24),
 ) -> ForecastSeries:
     df = _load_forecast()
+    # For weekly mode, pull the full monthly horizon and split downstream so
+    # we still respect the caller's `horizon` count when applied per-week.
+    fetch_horizon = horizon if granularity == "month" else min(horizon, 24)
     rows = (
         df.filter(
             (pl.col("material_id") == sku) & (pl.col("sub_channel") == sub_channel)
-        ).sort("date").head(horizon)
+        ).sort("date").head(fetch_horizon)
     )
     if len(rows) == 0:
         return ForecastSeries(sku=sku, sub_channel=sub_channel, granularity=granularity, points=[])
 
-    points = []
+    monthly: list[MonthlyPoint] = []
     for r in rows.iter_rows(named=True):
         lo10 = r.get("Hl_hat_p10_cal", r.get("Hl_hat_p10"))
         hi90 = r.get("Hl_hat_p90_cal", r.get("Hl_hat_p90"))
-        points.append(ForecastPoint(
+        monthly.append(MonthlyPoint(
             period=r["date"].strftime("%b.%y"),
             period_start=r["date"],
             point=float(r["Hl_hat_p50"]),
             lo80=float(lo10),
             hi80=float(hi90),
-            lo95=float(lo10) * 0.85,
-            hi95=float(hi90) * 1.15,
-            is_actual=False,
         ))
+
+    if granularity == "week":
+        # Deterministic pro-rata split (see app/services/weekly_split.py).
+        weekly = split_monthly_to_weekly(monthly)[:horizon * 5]
+        points = [
+            ForecastPoint(
+                period=w.period,
+                period_start=w.period_start,
+                point=w.point,
+                lo80=w.lo80,
+                hi80=w.hi80,
+                lo95=w.lo80 * 0.85,
+                hi95=w.hi80 * 1.15,
+                is_actual=False,
+            )
+            for w in weekly
+        ]
+    else:
+        points = [
+            ForecastPoint(
+                period=mp.period,
+                period_start=mp.period_start,
+                point=mp.point,
+                lo80=mp.lo80,
+                hi80=mp.hi80,
+                lo95=mp.lo80 * 0.85,
+                hi95=mp.hi80 * 1.15,
+                is_actual=False,
+            )
+            for mp in monthly
+        ]
 
     horizon_start = points[0].period_start
     horizon_end = points[-1].period_start

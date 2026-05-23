@@ -35,10 +35,12 @@ export function SidePanel() {
         <div className="flex flex-col gap-6">
           <div className="relative overflow-hidden rounded-xl border border-neutral-900/10 bg-white">
             <div className="aspect-[16/12] w-full flex items-center justify-center bg-gradient-to-br from-neutral-50 to-neutral-200 relative">
-              <Logo className="h-28 w-28 text-neutral-900" />
               <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-neutral-900 to-transparent opacity-10" />
-              <div className="absolute left-6 top-6 text-sm font-semibold tracking-tight text-neutral-900">
-                Ramp
+              <div className="flex items-center gap-4 text-neutral-900">
+                <span className="text-[44px] font-semibold tracking-tight leading-none">
+                  Ramp
+                </span>
+                <Logo className="h-12 w-12" />
               </div>
             </div>
           </div>

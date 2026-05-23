@@ -263,11 +263,7 @@ export interface paths {
         };
         /**
          * Forecast Timeline
-         * @description Monthly aggregated forecast + target for the main Overview chart.
-         *
-         *     Returns:
-         *       [{period, period_start, point, lo80, hi80, target}, ...]
-         *       one row per month, sorted chronologically.
+         * @description Monthly aggregated forecast + target, one row per month.
          */
         get: operations["forecast_timeline_api_forecast_timeline_get"];
         put?: never;
@@ -287,12 +283,54 @@ export interface paths {
         };
         /**
          * Forecast By Sub Channel
-         * @description Aggregated forecast + target per sub_channel for the breakdown bar chart.
-         *
-         *     Returns:
-         *       [{name, code, forecast, target, gap_pct}, ...]
+         * @description Per-sub_channel rollup, optionally scoped to a single period.
          */
         get: operations["forecast_by_sub_channel_api_forecast_by_sub_channel_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forecast/by-brand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Forecast By Brand
+         * @description Per-brand rollup, period-scoped. Sorted by absolute forecast volume.
+         */
+        get: operations["forecast_by_brand_api_forecast_by_brand_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pulse
+         * @description One-call headline for the UK home page.
+         *
+         *     Answers the brief's literal question — "is this month going to close above
+         *     or below the estimated budget" — at the portfolio level (all SKUs, all
+         *     sub-channels). Returns the worst-contributing brand and sub-channel so the
+         *     home page can call out where to look first.
+         */
+        get: operations["pulse_api_pulse_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -358,6 +396,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/external-signals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * External Signals
+         * @description Per-SKU × sub_channel external context for a target period.
+         *
+         *     Returns a compact bundle the Decision page can render in a sidebar:
+         *       - weather: avg temperature + anomaly vs climatology
+         *       - search: Estrella/lager/beer interest (0-100 Google Trends)
+         *       - retail: ONS retail + food/drink index
+         *       - events: UK holidays + sport in that month
+         *       - source: "actuals" or "prior_year" (so the UI can disclose proxy use)
+         */
+        get: operations["external_signals_api_external_signals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pricing/gross-per-hl": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Gross Per Hl */
+        get: operations["gross_per_hl_api_pricing_gross_per_hl_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -395,6 +477,23 @@ export interface components {
             z_score: number;
             /** Candidate Cause */
             candidate_cause: string;
+        };
+        /** BrandRollup */
+        BrandRollup: {
+            /** Brand */
+            brand: string;
+            /** Forecast */
+            forecast: number;
+            /** Target */
+            target: number;
+            /** Gap Pct */
+            gap_pct: number;
+            /** Gap Hl */
+            gap_hl: number;
+            /** Gap Gbp */
+            gap_gbp?: number | null;
+            /** N Skus */
+            n_skus: number;
         };
         /** BriefAgendaItem */
         BriefAgendaItem: {
@@ -563,6 +662,25 @@ export interface components {
             /** Suggested Next Action */
             suggested_next_action?: string | null;
         };
+        /** ExternalSignals */
+        ExternalSignals: {
+            /** Period */
+            period: string;
+            /** Period Start */
+            period_start: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "actuals" | "prior_year";
+            /** Source Period */
+            source_period: string;
+            weather: components["schemas"]["WeatherSignal"];
+            search: components["schemas"]["SearchSignal"];
+            retail: components["schemas"]["RetailSignal"];
+            /** Events */
+            events: components["schemas"]["CalendarEvent"][];
+        };
         /** ForecastPoint */
         ForecastPoint: {
             /** Period */
@@ -636,6 +754,25 @@ export interface components {
             history_hl: number[];
             /** Prev Week Gap Pct */
             prev_week_gap_pct?: number | null;
+            /** Gap Gbp */
+            gap_gbp?: number | null;
+        };
+        /**
+         * GrossPriceRate
+         * @description Approximated "normal" price per hectolitre for a data slice.
+         *
+         *     Computed as Σ revenue / Σ Hl over the requested filter. The underlying
+         *     source is net sales rather than true gross sales — at the aggregate
+         *     level (many promo + non-promo months) it averages out to a reasonable
+         *     proxy for the unit value. See backend/app/services/pricing.py.
+         */
+        GrossPriceRate: {
+            /** Gbp Per Hl */
+            gbp_per_hl: number | null;
+            /** N Rows */
+            n_rows: number;
+            /** Note */
+            note: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -798,6 +935,38 @@ export interface components {
              */
             type: "price" | "multibuy" | "display";
         };
+        /**
+         * Pulse
+         * @description Headline answer to the brief's "will this month close above/below
+         *     budget?" question. Single period, aggregated across all SKUs and channels.
+         */
+        Pulse: {
+            /** Period */
+            period: string;
+            /** Period Start */
+            period_start: string;
+            /** Total Forecast Hl */
+            total_forecast_hl: number;
+            /** Total Target Hl */
+            total_target_hl: number;
+            /** Gap Hl */
+            gap_hl: number;
+            /** Gap Pct */
+            gap_pct: number;
+            /** Gap Gbp */
+            gap_gbp?: number | null;
+            /** Gbp Per Hl */
+            gbp_per_hl?: number | null;
+            /**
+             * Confidence
+             * @enum {string}
+             */
+            confidence: "low" | "medium" | "high";
+            /** N Skus At Risk */
+            n_skus_at_risk: number;
+            worst_brand?: components["schemas"]["WorstSlice"] | null;
+            worst_channel?: components["schemas"]["WorstSlice"] | null;
+        };
         /** QualityPoint */
         QualityPoint: {
             /** Period */
@@ -925,6 +1094,26 @@ export interface components {
              */
             error?: string | null;
         };
+        /** RetailSignal */
+        RetailSignal: {
+            /** Retail Index */
+            retail_index?: number | null;
+            /** Food Drink Index */
+            food_drink_index?: number | null;
+            /** Food Drink Trend */
+            food_drink_trend?: ("up" | "flat" | "down") | null;
+        };
+        /** SearchSignal */
+        SearchSignal: {
+            /** Estrella */
+            estrella?: number | null;
+            /** Lager */
+            lager?: number | null;
+            /** Beer */
+            beer?: number | null;
+            /** Estrella Trend */
+            estrella_trend?: ("up" | "flat" | "down") | null;
+        };
         /** SimulationRequest */
         SimulationRequest: {
             /** Sku */
@@ -957,6 +1146,23 @@ export interface components {
             /** Notes */
             notes: string;
         };
+        /** SubChannelRollup */
+        SubChannelRollup: {
+            /** Name */
+            name: string;
+            /** Code */
+            code: string;
+            /** Forecast */
+            forecast: number;
+            /** Target */
+            target: number;
+            /** Gap Pct */
+            gap_pct: number;
+            /** Gap Hl */
+            gap_hl: number;
+            /** Gap Gbp */
+            gap_gbp?: number | null;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -969,6 +1175,29 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** WeatherSignal */
+        WeatherSignal: {
+            /** Temp C */
+            temp_c?: number | null;
+            /** Anomaly C */
+            anomaly_c?: number | null;
+        };
+        /**
+         * WorstSlice
+         * @description Used for both `worst_brand` and `worst_channel` in the pulse response.
+         */
+        WorstSlice: {
+            /** Name */
+            name: string;
+            /** Gap Hl */
+            gap_hl: number;
+            /** Gap Pct */
+            gap_pct: number;
+            /** Gap Gbp */
+            gap_gbp?: number | null;
+            /** Code */
+            code?: string | null;
         };
     };
     responses: never;
@@ -1465,6 +1694,8 @@ export interface operations {
         parameters: {
             query?: {
                 brand?: string | null;
+                /** @description "May.26" or "2026-05" */
+                period?: string | null;
             };
             header?: never;
             path?: never;
@@ -1478,7 +1709,73 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SubChannelRollup"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forecast_by_brand_api_forecast_by_brand_get: {
+        parameters: {
+            query?: {
+                sub_channel?: string | null;
+                /** @description "May.26" or "2026-05" */
+                period?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandRollup"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pulse_api_pulse_get: {
+        parameters: {
+            query?: {
+                /** @description "May.26" or "2026-05" — defaults to the earliest forecast month */
+                period?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Pulse"];
                 };
             };
             /** @description Validation Error */
@@ -1567,6 +1864,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BriefResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    external_signals_api_external_signals_get: {
+        parameters: {
+            query: {
+                sku: string;
+                sub_channel: string;
+                /** @description "Nov.26" or "2026-11" */
+                period?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalSignals"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    gross_per_hl_api_pricing_gross_per_hl_get: {
+        parameters: {
+            query?: {
+                sku?: string | null;
+                brand?: string | null;
+                sub_channel?: string | null;
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrossPriceRate"];
                 };
             };
             /** @description Validation Error */

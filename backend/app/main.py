@@ -19,11 +19,13 @@ from app.routers import (
     debug_data,
     drivers,
     explain_view,
+    external,
     forecast,
     gap,
     kpis,
     meta,
     news,
+    pricing,
     promos,
     recommend,
     simulate,
@@ -69,6 +71,8 @@ app.include_router(anomalies.router)
 app.include_router(aggregates.router)
 app.include_router(news.router)
 app.include_router(brief.router)
+app.include_router(external.router)
+app.include_router(pricing.router)
 
 
 @app.get("/", include_in_schema=False)

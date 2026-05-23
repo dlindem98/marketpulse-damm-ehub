@@ -99,24 +99,18 @@ export function MonthCalendar({
 }) {
   const today = new Date()
   const cells = buildMonthGrid(today)
-  const callsThisMonth = cells.reduce(
-    (n, c) => n + (c.inMonth ? c.calls.length : 0),
-    0,
-  )
 
   return (
     <section
-      className="flex-1 min-h-0 flex flex-col mt-6"
+      className="flex-1 min-h-0 flex flex-col"
       aria-label="Customer call calendar"
     >
-      {/* Header */}
-      <div className="flex items-baseline justify-between mb-4 shrink-0">
-        <h3 className="font-serif text-[28px] tracking-[-0.02em] text-neutral-900">
-          {monthLabel(today)}
+      {/* Compact header — page-level "May 2026" sits at the top of the
+          dashboard, so this just labels the calendar as a section. */}
+      <div className="mb-3 shrink-0">
+        <h3 className="text-[10.5px] uppercase tracking-[0.18em] text-neutral-500 font-medium">
+          Customer calls
         </h3>
-        <span className="text-[11.5px] text-neutral-500 tabular-nums">
-          {callsThisMonth} customer call{callsThisMonth === 1 ? "" : "s"}
-        </span>
       </div>
 
       {/* Day-of-week header strip */}

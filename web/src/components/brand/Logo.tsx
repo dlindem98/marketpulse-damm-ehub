@@ -1,13 +1,10 @@
 /**
- * Ramp logo — filled wedge with a subtly curved hypotenuse.
+ * Ramp logo — two parallel ramps (a short one in front, a tall one behind),
+ * each shaped like a soft-edged forward slash. Reads as motion / inclining
+ * traffic without any text.
  *
- * The shape is a right triangle hugging the bottom-right of a 24x24 viewbox:
- *   - flat base along the bottom
- *   - vertical edge along the right
- *   - the diagonal hypotenuse is replaced with a quadratic-bezier curve
- *     that sags gently into the wedge (control point at 14,14)
- *
- * Reads as a smooth-onramp silhouette — minimal, geometric, no chrome.
+ * Native viewBox is 512×300; both shapes use `fill="currentColor"` so the
+ * mark inherits whatever colour the parent sets via Tailwind text-*.
  */
 
 import { cn } from "@/lib/utils"
@@ -15,13 +12,20 @@ import { cn } from "@/lib/utils"
 export function Logo({ className }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox="0 0 512 300"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={cn("h-6 w-6", className)}
       aria-hidden
     >
-      <path d="M3 21 L21 21 L21 3 Q14 14 3 21 Z" fill="currentColor" />
+      <path
+        d="M48 235 Q42 235 46 229 L118 148 Q122 144 128 144 L196 144 Q204 144 198 151 L126 232 Q122 236 116 236 Z"
+        fill="currentColor"
+      />
+      <path
+        d="M155 235 Q149 235 153 229 L305 67 Q309 62 316 62 L401 62 Q409 62 403 69 L251 231 Q247 236 240 236 Z"
+        fill="currentColor"
+      />
     </svg>
   )
 }

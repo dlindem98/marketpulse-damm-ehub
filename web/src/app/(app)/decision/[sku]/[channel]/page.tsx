@@ -32,10 +32,11 @@ export default async function DecisionPage({
   searchParams,
 }: {
   params: Promise<{ sku: string; channel: string }>
-  searchParams: Promise<{ period?: string; tab?: string }>
+  searchParams: Promise<{ period?: string; tab?: string; granularity?: string }>
 }) {
   const { sku: skuRaw, channel: channelRaw } = await params
-  const { period, tab } = await searchParams
+  const { period, tab, granularity: granRaw } = await searchParams
+  const granularity: "month" | "week" = granRaw === "week" ? "week" : "month"
   const sku = decodeURIComponent(skuRaw)
   const sub_channel = decodeURIComponent(channelRaw)
 
@@ -84,6 +85,7 @@ export default async function DecisionPage({
               sub_channel={sub_channel}
               currentGap={currentGap ?? null}
               targetPeriod={targetPeriod}
+              granularity={granularity}
             />
           </Suspense>
         ) : (

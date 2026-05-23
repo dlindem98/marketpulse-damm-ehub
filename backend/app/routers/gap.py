@@ -22,6 +22,7 @@ import polars as pl
 from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas import GapItem
+from app.services.pricing import price_by_keys
 
 router = APIRouter(prefix="/api", tags=["gap"])
 
@@ -125,7 +126,14 @@ def get_gap(
                 (r["date"], r["hist_gap_hl"], r["hist_gap_pct"])
             )
 
-    rows = df.head(limit).iter_rows(named=True)
+    rows = list(df.head(limit).iter_rows(named=True))
+
+    # One bulk lookup of £/hL for every SKU × sub_channel pair in the result
+    # set, rather than per-row I/O. Used to attach `gap_gbp` so the inbox can
+    # show £ next to each row's hL gap.
+    pricing_keys = list({(r["material_id"], r["sub_channel"]) for r in rows})
+    rates = price_by_keys(pricing_keys)
+
     out: list[GapItem] = []
     for r in rows:
         key = (r["material_id"], r["sub_channel"])
@@ -135,16 +143,19 @@ def get_gap(
         prior = [t for t in series if t[0] < cutoff][-HISTORY_WINDOW:]
         history_hl = [float(t[1] or 0) for t in prior]
         prev_pct = float(prior[-1][2]) if prior and prior[-1][2] is not None else None
+        rate = rates.get(key)
+        gap_hl_val = float(r["gap_hl"] or 0)
         out.append(GapItem(
             sku=r["material_id"],
             sub_channel=r["sub_channel"],
             period=r["date"].strftime("%b.%y"),
             forecast_hl=float(r["Hl_hat_p50"]),
             budget_hl=float(r["target_hl"] or 0),
-            gap_hl=float(r["gap_hl"] or 0),
+            gap_hl=gap_hl_val,
             gap_pct=float(r["gap_pct"] or 0),
             confidence=r["confidence"],
             history_hl=history_hl,
             prev_week_gap_pct=prev_pct,
+            gap_gbp=(gap_hl_val * rate) if rate is not None else None,
         ))
     return out

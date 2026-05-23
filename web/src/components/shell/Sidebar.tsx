@@ -35,7 +35,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useState } from "react"
 import {
-  Inbox, Tag, FileText, LogOut, Settings,
+  ChevronDown, Inbox, Tag, FileText, LogOut, Settings,
   User as UserIcon,
 } from "lucide-react"
 import { Logo } from "@/components/brand/Logo"
@@ -65,6 +65,7 @@ export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [userOpen, setUserOpen] = useState(false)
+  const [newsOpen, setNewsOpen] = useState(false)
 
   function signOut() {
     document.cookie = "mp_session=; path=/; max-age=0; samesite=lax"
@@ -97,10 +98,10 @@ export function Sidebar() {
             className="group inline-flex items-center gap-2 rounded-md px-1.5 py-1 -mx-1.5 outline-none transition-colors hover:bg-white/60 focus-visible:ring-2 focus-visible:ring-black/30"
             title="Ramp — Inbox"
           >
-            <Logo className="h-5 w-5 text-neutral-900" />
             <span className="text-[13.5px] font-semibold tracking-tight text-neutral-900">
               Ramp
             </span>
+            <Logo className="h-5 w-5 text-neutral-900" />
           </Link>
 
           {/* User avatar — opens dropdown downward (anchored to top-right). */}
@@ -182,10 +183,29 @@ export function Sidebar() {
 
           </div>
 
-          {/* News: always expanded. Takes the remaining vertical space with
-              internal scroll so the profile footer stays anchored. */}
-          <section className="flex-1 min-h-[180px] flex flex-col mt-5 px-3 pb-3">
-            <div className="px-2 mb-2 flex items-baseline gap-2">
+          {/* News — collapsible. When open, takes remaining vertical space
+              with internal scroll. When closed, shrinks to just the header
+              row so the page can reclaim the space. */}
+          <section
+            className={cn(
+              "flex flex-col mt-5 px-3 pb-3",
+              newsOpen ? "flex-1 min-h-[180px]" : "shrink-0",
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => setNewsOpen((v) => !v)}
+              aria-expanded={newsOpen}
+              aria-controls="sidebar-news-body"
+              className="group px-2 mb-2 flex items-center gap-1.5 rounded-md hover:bg-white/60 transition-colors"
+            >
+              <ChevronDown
+                className={cn(
+                  "h-3.5 w-3.5 text-neutral-400 transition-transform",
+                  newsOpen ? "rotate-0" : "-rotate-90",
+                )}
+                aria-hidden
+              />
               <span className="text-[11.5px] font-medium text-neutral-500">News</span>
               {!newsLoading && articles.length > 0 && (
                 <span className="ml-auto text-[10.5px] text-neutral-400 tabular-nums">
@@ -195,26 +215,31 @@ export function Sidebar() {
               {newsLoading && articles.length === 0 && (
                 <span className="ml-auto inline-flex h-1.5 w-1.5 rounded-full bg-neutral-300 animate-pulse" />
               )}
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {newsLoading && articles.length === 0 ? (
-                <div className="space-y-1.5 px-1 py-1">
-                  <Skeleton className="h-16 w-full rounded-lg" />
-                  <Skeleton className="h-16 w-full rounded-lg" />
-                  <Skeleton className="h-16 w-full rounded-lg" />
-                </div>
-              ) : articles.length === 0 ? (
-                <NewsEmptyHint />
-              ) : (
-                <ul className="flex flex-col gap-1.5">
-                  {articles.slice(0, 20).map((a) => (
-                    <li key={a.id}>
-                      <NewsCard article={a} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            </button>
+            {newsOpen && (
+              <div
+                id="sidebar-news-body"
+                className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {newsLoading && articles.length === 0 ? (
+                  <div className="space-y-1.5 px-1 py-1">
+                    <Skeleton className="h-16 w-full rounded-lg" />
+                    <Skeleton className="h-16 w-full rounded-lg" />
+                    <Skeleton className="h-16 w-full rounded-lg" />
+                  </div>
+                ) : articles.length === 0 ? (
+                  <NewsEmptyHint />
+                ) : (
+                  <ul className="flex flex-col gap-1.5">
+                    {articles.slice(0, 20).map((a) => (
+                      <li key={a.id}>
+                        <NewsCard article={a} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </section>
         </div>
 

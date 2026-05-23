@@ -15,7 +15,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { serverFetch } from "@/lib/api"
-import { formatHl, formatPercent, formatGBP } from "@/lib/format"
+import { confidenceLabel, formatHl, formatPercent, formatGBP } from "@/lib/format"
 import type { components } from "@/lib/api.gen"
 
 type RecResponse = components["schemas"]["RecommendationResponse"]
@@ -40,8 +40,8 @@ function scenarioSubtitle(s: RecScenario): string | null {
 
   const head =
     actions.length === 1
-      ? `Single play · ${formatHl(actions[0].expected_lift_hl)} lift · ${conf} confidence`
-      : `${actions.length} actions · avg ${formatHl(avgLift)} lift · ${conf} confidence`
+      ? `Single play · ${formatHl(actions[0].expected_lift_hl)} lift · ${confidenceLabel(conf)}`
+      : `${actions.length} actions · avg ${formatHl(avgLift)} lift · ${confidenceLabel(conf)}`
 
   // Prefer a real historical anchor if the LLM provided one in evidence.
   if (evidence && /\d/.test(evidence)) return `Based on: ${evidence}`
@@ -124,7 +124,7 @@ export async function OptionsPanel({
                       <span>Lift: {formatHl(a.expected_lift_hl)}</span>
                       <span>Closes: {formatPercent(a.expected_gap_closed_pct, 0)}</span>
                       {a.estimated_cost && <span>Cost: {formatGBP(a.estimated_cost)}</span>}
-                      <span className="capitalize">{a.confidence}</span>
+                      <span>{confidenceLabel(a.confidence)}</span>
                     </div>
                     {a.evidence && a.evidence.length > 0 && (
                       <ul className="text-[10.5px] text-muted-foreground/80 space-y-0.5 pt-1">

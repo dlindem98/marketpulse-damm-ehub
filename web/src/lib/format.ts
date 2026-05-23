@@ -112,3 +112,19 @@ export const gapColor = (gapPct: number): string => {
     default:         return "var(--neutral)"
   }
 }
+
+/**
+ * Stock-market style label for the model's confidence reading. Tight
+ * forecast band (low volatility) reads as bullish; wide band reads as
+ * volatile. Used in place of "high / medium / low confidence" everywhere
+ * the UI surfaces the model's certainty.
+ */
+export type ConfidenceLevel = "high" | "medium" | "low"
+export const confidenceLabel = (c: ConfidenceLevel | string): string => {
+  switch (c) {
+    case "high":   return "Bullish"
+    case "medium": return "Neutral"
+    case "low":    return "Volatile"
+    default:       return c
+  }
+}
