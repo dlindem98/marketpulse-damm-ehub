@@ -14,6 +14,11 @@ const nextConfig: NextConfig = {
   // (decision/[sku]/[channel]?period=&tab=) and casting at every site
   // doesn't add real safety, just noise.
 
+  // Hide the on-screen dev indicator (the floating "N" / route status pill
+  // in the corner of every page during `next dev`). It gets in the way of
+  // demoing the actual UI.
+  devIndicators: false,
+
   // Allow next/image to optimize the hackathon sponsor logos served from
   // dammxeh.com's own CDN (we hot-link them rather than copy the files).
   images: {
