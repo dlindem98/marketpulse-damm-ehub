@@ -72,7 +72,7 @@ carries `?tab=` so users can deep-link to a specific step from the chat
 - Tailwind v3 → **Tailwind v4** (`@theme` directive, no PostCSS config)
 - TanStack Query → **RSC `fetch` + SWR for client-interactive bits**
 - Custom `AppShell` → **proper Dub-pattern sidebar** (brand mark + workflow nav + persona footer)
-- `frontend/` (Vite) → moved to **`frontend-legacy/`** (kept as reference; will be deleted in a follow-up commit once new app is verified end-to-end)
+- `frontend/` (Vite) → **deleted** (was briefly preserved at `frontend-legacy/`, removed in the follow-up cleanup commit once the Next.js app was verified)
 - New app lives at **`web/`** at the repo root
 
 **Backend untouched.** All 15 endpoints serve the same parquet snapshots.

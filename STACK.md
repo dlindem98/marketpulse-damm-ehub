@@ -91,23 +91,19 @@ Every choice has a reason tied to a judging criterion. ⭐ = primary pick.
 
 ---
 
-## 8. Frontend (React)
+## 8. Frontend (Next.js)
 
-See **[FRONTEND.md](FRONTEND.md)** for the detailed component map. Highlights:
+See **[FRONTEND.md](FRONTEND.md)** for the detailed component map and IA. Highlights:
 
-- ⭐ **[Vite](https://vitejs.dev/) + React 18 + TypeScript** — fastest dev loop. (Next.js 15 alternative if SSR matters.)
-- ⭐ **[Tailwind CSS](https://tailwindcss.com/)** — required by every UI lib below.
-- ⭐ **[shadcn/ui](https://ui.shadcn.com/)** — copy-paste components, no dep hell. Cards, Tabs, Slider, Sheet, Command, DropdownMenu, Sonner.
-- ⭐ **[Magic UI](https://magicui.design/)** (MIT) — free shadcn-style animated components, all flat / 2D: `NumberTicker`, `TextAnimate`, `Marquee`, `ShimmerButton`, `BorderBeam`, `MagicCard` (spotlight hover, no tilt), `AnimatedGradientText`. Installed via shadcn CLI.
-- ⭐ **[Tremor](https://tremor.so/)** — dashboard primitives built on Recharts + Tailwind. `<Card>`, `<Metric>`, `<BadgeDelta>`, `<AreaChart>`, `<BarList>`, `<DonutChart>`. Massive time saver.
-- ⭐ **[Recharts](https://recharts.org/)** (under Tremor) for default charts; **[Plotly.js](https://plotly.com/javascript/)** when we need SHAP waterfalls or confidence-band shading Tremor can't do.
-- ⭐ **[TanStack Query](https://tanstack.com/query)** — server-state caching for all `/api/*` calls.
-- ⭐ **[TanStack Table](https://tanstack.com/table)** — gap table, promo ROI table.
-- ⭐ **[Vercel AI SDK `useChat`](https://sdk.vercel.ai/docs)** or **[assistant-ui](https://github.com/Yonom/assistant-ui)** — streaming chat UI hooked to `/api/chat`.
+- ⭐ **[Next.js 16](https://nextjs.org/) (App Router) + React 19 + TypeScript** — Server Components for parallel server-side fetches, Suspense streaming for slow LLM calls, no client-side fetch waterfalls. Turbopack is the default bundler.
+- ⭐ **[Tailwind CSS v4](https://tailwindcss.com/)** with the new `@theme inline` directive — zero PostCSS config.
+- ⭐ **shadcn/ui primitives** — hand-written into `web/src/components/ui/` (button, card, tabs, select, slider, dropdown-menu, badge, skeleton, separator, input). Built on Radix UI.
+- ⭐ **[Radix UI](https://www.radix-ui.com/)** — headless accessible primitives (slot, dialog, dropdown-menu, select, slider, tabs, separator).
+- ⭐ **[Recharts 3](https://recharts.org/)** — MIT, light bundle. Forecast area+line, drivers waterfall, simulator chart.
+- ⭐ **[SWR](https://swr.vercel.app/)** — only used inside the interactive Simulate panel; RSC handles all read paths.
 - ⭐ **[Lucide React](https://lucide.dev/)** — icons.
-- ⭐ **[Framer Motion](https://www.framer.com/motion/)** — already a peer of React Bits; powers page transitions and micro-interactions.
-- ⭐ **[next-themes / class-based dark mode](https://github.com/pacocoursey/next-themes)** — dark theme default, Damm red accent.
-- ⭐ **[openapi-fetch](https://github.com/openapi-ts/openapi-typescript)** — generates typed client from FastAPI's OpenAPI; zero hand-written DTOs.
+- ⭐ **Inter via `next/font/google`** — same family as Dub / Linear / Vercel; tabular numerics on every metric.
+- ⭐ **[openapi-fetch](https://github.com/openapi-ts/openapi-typescript) + openapi-typescript** — generates typed client from FastAPI's OpenAPI. Regenerate with `make types`.
 
 ---
 
@@ -148,7 +144,7 @@ The MongoDB MCP gives Claude direct query access during development — verify s
 ## 🧩 Final stack (concrete picks)
 
 ```
-Repo layout    : backend/  +  frontend/  (monorepo, no workspace needed)
+Repo layout    : backend/  +  web/  (monorepo, no workspace needed)
 
 Data           : Polars + DuckDB + Pandera
 External       : holidays + Open-Meteo + pytrends + ONS
@@ -171,16 +167,14 @@ Storage        : Parquet (raw + snapshots) + MongoDB (live state via MCP)
 Backend        : FastAPI + Pydantic v2 + Uvicorn + SSE for chat
                  + openapi.json published → typed FE client
 
-Frontend       : Vite + React 18 + TypeScript + Tailwind
-                 + shadcn/ui (primitives)
-                 + Magic UI (NumberTicker, TextAnimate, MagicCard,
-                             BorderBeam, ShimmerButton, Marquee — MIT, all flat)
-                 + Tremor (dashboard cards + charts)
-                 + Plotly.js (SHAP + confidence bands)
-                 + TanStack Query + TanStack Table
-                 + Vercel AI SDK useChat (streaming chat)
-                 + Framer Motion (subtle page transitions)
-                 + openapi-fetch (typed API client)
+Frontend       : Next.js 16 (App Router) + React 19 + TypeScript + Tailwind v4
+                 + shadcn primitives (hand-written, MIT-clean)
+                 + Radix UI (headless accessible)
+                 + Recharts 3 (forecast / waterfall / simulator)
+                 + SWR (interactive client panels only)
+                 + Lucide React (icons)
+                 + Inter via next/font (tabular numerics on metrics)
+                 + openapi-fetch + openapi-typescript (typed API client)
 
 Dev            : uv + pnpm + ruff + biome
 ```
@@ -194,5 +188,5 @@ Dev            : uv + pnpm + ruff + biome
 5. **SHAP + Alibi** map directly to *explain deviations* and *recommend actions* scoring criteria.
 6. **Two-profile LLM routing** = best of both worlds. Llama-3.3 via Groq (0.86s) for everything latency-sensitive — chat, tool-call loops, explain-view. Kimi-K2-Instruct via Novita (5s) only on the `/api/recommend` endpoint, where output quality is judged on "actionability" and the user expects a moment of thinking. Live benchmark, not a guess.
 7. **FastAPI** keeps every Python ML call intact while exposing a clean typed REST surface.
-8. **React + shadcn + Magic UI + Tremor** gives a Linear/Vercel-quality UI in a fraction of the time of building from scratch — all MIT-licensed, safe for a public repo, flat aesthetic that doesn't fight a data dashboard.
+8. **Next.js 16 + Radix + Recharts** gives a Linear/Dub-quality UI with RSC parallel fetches and Suspense streaming — all MIT-licensed, safe for a public repo, no client-side fetch waterfalls.
 9. **MongoDB MCP** lets Claude query state during development without writing glue code.

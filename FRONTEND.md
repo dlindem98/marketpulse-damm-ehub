@@ -181,8 +181,3 @@ Env override (optional):
 - React Router — Next App Router handles routing
 - Vite — Next dev server (Turbopack)
 
-## Legacy
-
-The previous Vite app is preserved at `frontend-legacy/` for reference and
-diff inspection. It will be deleted in a follow-up commit once the new app
-has been demoed end-to-end.
