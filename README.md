@@ -1,4 +1,4 @@
-# MarketPulse UK — Damm × Engineering Hub Hackathon
+# Ramp (formerly MarketPulse UK) — Damm × Engineering Hub Hackathon
 
 A tool that forecasts UK sales, detects deviations vs. budget, and recommends commercial actions to close the gap.
 

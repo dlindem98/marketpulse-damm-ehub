@@ -1,4 +1,4 @@
-# Tech Stack — MarketPulse UK
+# Tech Stack — Ramp
 
 Every choice has a reason tied to a judging criterion. ⭐ = primary pick.
 

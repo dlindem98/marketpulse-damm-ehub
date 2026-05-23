@@ -1,17 +1,11 @@
 "use client"
 
 /**
- * Ask MarketPulse — plain-English Q&A.
- *
- * Audience: Commercial Manager prepping for an exec readout or a grocer call
- * who needs a one-line answer right now, not a chart.
- *
- * Backed by /api/explain-view with the user's question as visible_state.
- * Streams in front-end via standard fetch.
+ * Ask Ramp — plain-English Q&A. Dub-admin composition.
  */
 
 import { useState } from "react"
-import { Card } from "@/components/ui/card"
+import { MaxWidthWrapper } from "@/components/shell/MaxWidthWrapper"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { api } from "@/lib/api"
@@ -47,18 +41,18 @@ export default function Page() {
   }
 
   return (
-    <div className="px-6 py-6 max-w-3xl mx-auto">
-      <header className="mb-5">
-        <h1 className="text-2xl font-semibold tracking-tight">Ask MarketPulse</h1>
-        <p className="text-sm text-muted-foreground mt-1">
+    <MaxWidthWrapper className="py-10">
+      <header className="mb-6 max-w-2xl">
+        <h2 className="text-xl font-semibold text-neutral-900">Ask Ramp</h2>
+        <p className="mt-1 text-sm text-neutral-500">
           Plain-English questions about forecasts, gaps, and what to do. Backed by the same models that power the inbox.
         </p>
       </header>
 
-      <Card className="h-[540px] flex flex-col">
+      <div className="max-w-2xl rounded-lg border border-neutral-200 bg-white flex flex-col h-[560px]">
         <div className="flex-1 overflow-y-auto py-4 px-4 space-y-3">
           {messages.length === 0 && (
-            <div className="text-sm text-muted-foreground italic">
+            <div className="text-sm text-neutral-500 italic">
               Try: &quot;Why is Estrella in grocery missing target?&quot; or &quot;What&apos;s the biggest promo opportunity right now?&quot;
             </div>
           )}
@@ -67,8 +61,8 @@ export default function Page() {
               <div
                 className={`max-w-[80%] rounded-lg px-3.5 py-2.5 text-sm whitespace-pre-line ${
                   m.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-secondary-foreground"
+                    ? "bg-neutral-900 text-white"
+                    : "bg-neutral-100 text-neutral-900"
                 }`}
               >
                 {m.text}
@@ -77,13 +71,13 @@ export default function Page() {
           ))}
           {pending && (
             <div className="flex justify-start">
-              <div className="bg-secondary text-muted-foreground rounded-lg px-3.5 py-2.5 text-sm italic">
+              <div className="bg-neutral-100 text-neutral-500 rounded-lg px-3.5 py-2.5 text-sm italic">
                 Thinking…
               </div>
             </div>
           )}
         </div>
-        <form onSubmit={send} className="border-t border-border p-3 flex gap-2">
+        <form onSubmit={send} className="border-t border-neutral-200 p-3 flex gap-2">
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -91,7 +85,7 @@ export default function Page() {
           />
           <Button type="submit" disabled={!input.trim() || pending}>Send</Button>
         </form>
-      </Card>
-    </div>
+      </div>
+    </MaxWidthWrapper>
   )
 }

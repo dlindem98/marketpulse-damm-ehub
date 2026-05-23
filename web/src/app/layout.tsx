@@ -16,7 +16,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "MarketPulse UK — Commercial Intelligence",
+  title: "Ramp — Commercial Intelligence for UK Trade",
   description:
     "Daily worklist for UK Commercial Managers: where you're missing target, why, and what to do this week.",
 }

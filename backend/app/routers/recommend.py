@@ -33,7 +33,7 @@ class RecommendRequest(BaseModel):
     period: str
 
 
-SYSTEM_PROMPT = """You are MarketPulse, a commercial analyst for Damm UK.
+SYSTEM_PROMPT = """You are Ramp, a commercial analyst for Damm UK.
 You help the UK commercial team understand why monthly sales forecasts deviate
 from target and recommend concrete actions to close the gap.
 

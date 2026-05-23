@@ -1,49 +1,48 @@
 "use client"
 
 /**
- * Login — fake auth, demo grade.
+ * Login — direct port of Dub's `/login` page composition.
  *
- * Mirrors Dub's sign-in pattern: centered card, OAuth-style buttons,
- * email fallback, divider, terms footer. Any button just sets the
- * mp_session cookie and bounces to /. The proxy gate (web/proxy.ts)
- * then lets the user through.
+ *   <Wordmark />  (centered, above the form)
+ *   <h3>Sign in to your Ramp account</h3>
+ *   <LoginForm />
+ *     - Continue with Google
+ *     - Continue with GitHub
+ *     - AuthMethodsSeparator (or)
+ *     - Email input + Continue with email
  *
- * This is intentionally fake: hackathon demo, no real provider, no real
- * session. If we ever wire real auth (Clerk / NextAuth / Supabase), this
- * is the page that gets the real buttons — the rest of the app already
- * trusts the cookie.
+ * No card border, no extra chrome. Form sits flat on the page; AuthLayout
+ * handles vertical centering. Any button sets the mp_session cookie and
+ * bounces to ?next=… (defaults to /).
  */
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useState } from "react"
-import { Activity, Loader2 } from "lucide-react"
-import { Card } from "@/components/ui/card"
+import { Loader2 } from "lucide-react"
+import { Wordmark } from "@/components/brand/Wordmark"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
 const SESSION_COOKIE = "mp_session"
 
 function signIn(): void {
-  // 30-day cookie; secure-ish defaults. The proxy checks for any value.
   const maxAge = 60 * 60 * 24 * 30
   document.cookie = `${SESSION_COOKIE}=demo; path=/; max-age=${maxAge}; samesite=lax`
 }
 
 export default function LoginPage() {
-  // useSearchParams() forces this subtree to be dynamic — wrap in Suspense
-  // so the rest of the page can still prerender.
   return (
-    <Suspense fallback={<LoginCardSkeleton />}>
-      <LoginCard />
+    <Suspense fallback={<LoginFormSkeleton />}>
+      <LoginForm />
     </Suspense>
   )
 }
 
-function LoginCardSkeleton() {
-  return <Card className="w-full max-w-sm p-7 h-[460px]" />
+function LoginFormSkeleton() {
+  return <div className="w-full max-w-sm h-[420px]" />
 }
 
-function LoginCard() {
+function LoginForm() {
   const router = useRouter()
   const search = useSearchParams()
   const next = search.get("next") || "/"
@@ -52,7 +51,6 @@ function LoginCard() {
 
   async function handle(provider: "google" | "github" | "email") {
     setPending(provider)
-    // tiny delay so the button shows a spinner — feels real, not instant
     await new Promise((r) => setTimeout(r, 450))
     signIn()
     router.push(next)
@@ -60,26 +58,22 @@ function LoginCard() {
   }
 
   return (
-    <Card className="w-full max-w-sm p-7">
-      {/* Brand mark */}
-      <div className="flex items-center justify-center mb-6">
-        <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
-          <Activity className="h-5 w-5 text-primary-foreground" strokeWidth={2.5} />
-        </div>
+    <div className="w-full max-w-sm">
+      <div className="flex justify-center mb-7">
+        <Wordmark className="text-neutral-900" />
       </div>
 
-      <h1 className="text-center text-xl font-semibold tracking-tight">
-        Sign in to MarketPulse
-      </h1>
-      <p className="text-center text-[12.5px] text-muted-foreground mt-1.5">
-        Use your work account to access the UK commercial intelligence dashboard.
+      <h3 className="text-center text-xl font-semibold text-neutral-900">
+        Sign in to your Ramp account
+      </h3>
+      <p className="mt-1.5 text-center text-sm text-neutral-500">
+        UK commercial intelligence, in one inbox.
       </p>
 
-      {/* OAuth buttons (fake) */}
-      <div className="mt-6 space-y-2">
+      <div className="mt-8 flex flex-col gap-2">
         <Button
           variant="outline"
-          className="w-full h-10 gap-2.5"
+          className="h-10 gap-2.5"
           onClick={() => handle("google")}
           disabled={pending !== null}
         >
@@ -91,7 +85,7 @@ function LoginCard() {
           Continue with Google
         </Button>
         <Button
-          className="w-full h-10 gap-2.5"
+          className="h-10 gap-2.5"
           onClick={() => handle("github")}
           disabled={pending !== null}
         >
@@ -104,21 +98,19 @@ function LoginCard() {
         </Button>
       </div>
 
-      {/* Divider */}
       <div className="my-5 flex items-center gap-3">
-        <div className="h-px flex-1 bg-border" />
-        <div className="text-[11px] uppercase tracking-wider text-muted-foreground">or</div>
-        <div className="h-px flex-1 bg-border" />
+        <div className="h-px flex-1 bg-neutral-200" />
+        <div className="text-[11px] uppercase tracking-wider text-neutral-500">or</div>
+        <div className="h-px flex-1 bg-neutral-200" />
       </div>
 
-      {/* Email fallback */}
       <form
         onSubmit={(e) => {
           e.preventDefault()
           if (pending) return
           handle("email")
         }}
-        className="space-y-2"
+        className="flex flex-col gap-2"
       >
         <Input
           type="email"
@@ -126,11 +118,12 @@ function LoginCard() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           autoComplete="email"
+          className="h-10"
         />
         <Button
           type="submit"
           variant="outline"
-          className="w-full h-10"
+          className="h-10"
           disabled={pending !== null}
         >
           {pending === "email" ? (
@@ -139,12 +132,7 @@ function LoginCard() {
           Continue with email
         </Button>
       </form>
-
-      {/* Footer */}
-      <div className="mt-6 text-center text-[10.5px] text-muted-foreground leading-snug">
-        By continuing, you agree to the demo terms. No real auth — any button signs you in for the hackathon walkthrough.
-      </div>
-    </Card>
+    </div>
   )
 }
 

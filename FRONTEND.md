@@ -1,8 +1,12 @@
-# Frontend — MarketPulse UK (Next.js 16 + App Router)
+# Frontend — Ramp (Next.js 16 + App Router)
 
 > **Status:** ✅ Triage inbox + unified decision flow + promo library + chat. Four routes, one persona.
 >
 > **Persona:** UK Commercial / Trade Marketing Manager. Daily job: prep grocer / pubco calls.
+>
+> **Brand:** Ramp — minimalist filled-wedge mark (lower-left triangle = incline). The product is the *ramp* between today's gap and the target you owe.
+>
+> **Shell:** direct port of [Dub admin](https://github.com/dubinc/dub/tree/main/apps/web/app/(ee)/admin.dub.co)'s `(dashboard)/layout-nav-client.tsx` pattern. Sticky top nav (h-16, bg-white, border-b), MaxWidthWrapper, inline tabs with `rounded-md px-3 py-1.5` + active `bg-neutral-100 text-neutral-900` / inactive `text-neutral-500`. Page bg `bg-neutral-50`. Login: direct port of `(auth)/login/page.tsx` composition (grow basis-0 vertical sandwich, no card chrome, terms footer).
 >
 > **Stack pivot:** see [DECISIONS.md D-019](DECISIONS.md) for the full rationale. tl;dr — Vite SPA replaced by Next.js 16 RSC; 7-page IA collapsed to 4 task-shaped routes; entry point switched from a dashboard to a triage inbox.
 

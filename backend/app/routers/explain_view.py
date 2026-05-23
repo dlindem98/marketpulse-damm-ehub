@@ -11,7 +11,7 @@ from app.services.llm import call_with_fallback
 
 router = APIRouter(prefix="/api", tags=["explain-view"])
 
-SYSTEM_PROMPT = """You are MarketPulse, a commercial analyst for Damm UK.
+SYSTEM_PROMPT = """You are Ramp, a commercial analyst for Damm UK.
 The user is looking at a dashboard view. Summarize what they should take away.
 
 OUTPUT: strict JSON, exactly:
