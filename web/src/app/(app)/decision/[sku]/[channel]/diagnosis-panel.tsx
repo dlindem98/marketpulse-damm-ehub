@@ -313,42 +313,43 @@ function PlayCard({ play, href }: { play: Play; href: string }) {
     : "—"
 
   return (
-    // Dark surface so the row reads as a CTA strip rather than three
-    // more info cards (which is how it landed when they were white +
-    // grey border alongside the supporting cards above). Click → run.
+    // Light-grey surface (vs the white KPI / supporting cards above):
+    // clearly distinct as an interactive row, but softer than dark
+    // black which read as "primary CTA, primary CTA, primary CTA".
+    // Hover deepens the grey + reveals "Run play →" affordance.
     <Link
       href={href as Parameters<typeof Link>[0]["href"]}
-      className="group flex h-full flex-col gap-3 rounded-xl bg-neutral-900 text-white px-4 py-4 transition-colors hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+      className="group flex h-full flex-col gap-3 rounded-xl bg-neutral-100 border border-neutral-200 px-4 py-4 transition-colors hover:bg-neutral-200/80 hover:border-neutral-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/20"
     >
       {/* Eyebrow row: kind icon + label + gap-closed badge */}
       <div className="flex items-center gap-2">
         <span
-          className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-white/10 text-white/90"
+          className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-white text-neutral-700 border border-neutral-200"
           aria-hidden
         >
           <Icon className="h-3 w-3" />
         </span>
-        <span className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-white/55">
+        <span className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-neutral-500">
           {meta.eyebrow}
         </span>
         {play.expected_gap_closed_pct != null && (
           <span
             className="ml-auto text-[12px] font-semibold tabular-nums text-[color:var(--positive)]"
-            title="Estimated share of the current month's gap this play would close"
+            title="Estimated share of the gap this play would close"
           >
             {formatPercent(closurePct, 0)}
           </span>
         )}
       </div>
 
-      {/* The action — large + bright so it reads as the button label. */}
-      <div className="text-[14px] font-semibold text-white leading-snug">
+      {/* The action — bold so it reads as the button label. */}
+      <div className="text-[14px] font-semibold text-neutral-900 leading-snug">
         {play.title}
       </div>
 
-      {/* One-liner grounding (dimmed). Full sentence on hover. */}
+      {/* One-liner grounding (muted). Full sentence on hover. */}
       <p
-        className="mt-auto text-[11.5px] text-white/55 leading-snug line-clamp-2"
+        className="mt-auto text-[11.5px] text-neutral-500 leading-snug line-clamp-2"
         title={play.why}
       >
         {play.why}
@@ -356,9 +357,9 @@ function PlayCard({ play, href }: { play: Play; href: string }) {
 
       {/* Footer: months scope on the left, explicit "Run" CTA on the
           right so it's unambiguously a button rather than a link. */}
-      <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/10">
-        <span className="text-[11px] text-white/40 tabular-nums">{monthsLabel}</span>
-        <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-white group-hover:text-[color:var(--positive)] transition-colors">
+      <div className="flex items-center justify-between gap-2 pt-1 border-t border-neutral-200">
+        <span className="text-[11px] text-neutral-400 tabular-nums">{monthsLabel}</span>
+        <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-neutral-700 group-hover:text-neutral-900 transition-colors">
           Run play
           <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
         </span>

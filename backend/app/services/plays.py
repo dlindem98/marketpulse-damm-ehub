@@ -278,18 +278,25 @@ def _play_catch_the_event(sku: str, sub_channel: str, target_period: str | None)
 
 def _play_close_the_gap(sku: str, sub_channel: str, target_period: str | None) -> Play | None:
     """Size one multi-buy discount that, applied across ALL at-risk
-    months for this SKU, closes the cumulative gap. Uses the same
-    saturating lift curve as the simulator."""
+    months for this SKU, closes the cumulative gap.
+
+    Math has to match what services/forecast/simulate.py *actually* does,
+    not a simplified placeholder — earlier the inverse only inverted the
+    saturating curve and forgot the historical_lift × dampener ×
+    event_boost factors, so the play recommended 5% when the simulator
+    would have needed ~25% to close the same gap.
+    """
     import math
+
+    # Constants mirroring services/forecast/simulate.py
+    LIFT_SCALE = 15.0
+    PROMO_BASE_DAMPENER = 0.65
 
     at_risk = _at_risk_months(sku, sub_channel)
     if not at_risk:
         return None
 
-    # Pull each at-risk month's forecast + target so we can size the
-    # discount against the SKU's TOTAL cumulative shortfall, not one
-    # month in isolation. This way the play really does close the
-    # SKU-wide problem when the user clicks it.
+    # Pull at-risk months and the historical lift the simulator would use.
     fc = pl.read_parquet(SNAPSHOTS / "forecast.parquet").filter(
         (pl.col("material_id") == sku) & (pl.col("sub_channel") == sub_channel)
     )
@@ -306,14 +313,49 @@ def _play_close_the_gap(sku: str, sub_channel: str, target_period: str | None) -
     if total_forecast <= 0 or total_gap >= 0:
         return None
 
+    # Mirror simulator.simulate(): action_lift_base = historical_lift
+    #   × dampener × (1 - exp(-d/SCALE)); per-month lift = base × boost.
+    # Pull the historical multi-buy lift from promo_roi.parquet — same
+    # exact lookup the simulator uses (filter by promo_type ONLY, not
+    # sub_channel, since the underlying table only contains GROCERY
+    # rows anyway and the sim averages across all of them).
+    historical_lift = 0.18  # FALLBACK_LIFT for multi-buy in simulate.py
+    roi_path = SNAPSHOTS / "promo_roi.parquet"
+    if roi_path.is_file():
+        roi = pl.read_parquet(roi_path).filter(pl.col("promo_type") == "multi-buy")
+        if roi.height > 0:
+            historical_lift = max(0.0, float(roi["avg_lift_pct"].mean()))
+
+    # Estimate the average event_boost across the at-risk months. Pull
+    # calendar events overlapping the at-risk period set and look up the
+    # importance-driven boost (1.00 / 1.10 / 1.25 / 1.50) per month.
+    from datetime import date as _date
+    from app.services.calendar import build_events, event_boost_for_month
+    at_risk_dates = sorted(joined["date"].to_list())
+    events = build_events(at_risk_dates[0], at_risk_dates[-1]) if at_risk_dates else []
+    boosts = [event_boost_for_month(d.isoformat(), events) for d in at_risk_dates]
+    avg_event_boost = sum(boosts) / max(len(boosts), 1)
+
+    # Solve for the discount needed.
+    #   per_month_lift_pct = historical_lift × dampener × (1 - exp(-d/SCALE)) × event_boost
+    # We want per_month_lift_pct ≈ needed_lift_pct on average:
     needed_lift_pct = abs(total_gap) / total_forecast
+    floor = max(0.001, historical_lift * PROMO_BASE_DAMPENER * avg_event_boost)
+    needed_saturating = min(0.95, needed_lift_pct / floor)
     try:
-        implied = -18.0 * math.log(max(1e-3, 1.0 - min(needed_lift_pct, 0.85)))
+        implied = -LIFT_SCALE * math.log(max(1e-3, 1.0 - needed_saturating))
     except ValueError:
         implied = _DISCOUNT_CAP
     discount = int(round(max(_DISCOUNT_FLOOR, min(_DISCOUNT_CAP, implied))))
-    saturated = min(needed_lift_pct, 1.0 - math.exp(-discount / 18.0))
-    closed_pct = saturated / max(needed_lift_pct, 1e-3)
+
+    # Forward-pass to compute the actual closure the simulator will
+    # report, so the play's expected_gap_closed_pct doesn't lie.
+    achieved_lift_pct = (
+        historical_lift * PROMO_BASE_DAMPENER
+        * (1.0 - math.exp(-discount / LIFT_SCALE))
+        * avg_event_boost
+    )
+    closed_pct = min(1.0, achieved_lift_pct / max(needed_lift_pct, 1e-3))
 
     n_months = len(at_risk)
     title = f"Multi-buy at {discount}%"
@@ -324,7 +366,7 @@ def _play_close_the_gap(sku: str, sub_channel: str, target_period: str | None) -
     )
     closes_most = closed_pct >= 0.95
     why = (
-        f"~{saturated*100:.0f}% lift "
+        f"~{achieved_lift_pct*100:.0f}% lift "
         f"{'covers' if closes_most else 'covers most of'} the {abs(total_gap):.0f} hL "
         f"SKU-wide shortfall over {n_months} month{'s' if n_months != 1 else ''}"
     )
