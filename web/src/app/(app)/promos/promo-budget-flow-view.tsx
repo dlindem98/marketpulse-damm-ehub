@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react"
 import { AlertTriangle } from "lucide-react"
 import useSWR from "swr"
-import { Badge } from "@/components/ui/badge"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
@@ -110,7 +109,7 @@ export function PromoBudgetFlowView() {
       ) : (
         <>
           <section className="rounded-2xl border border-neutral-200 bg-white p-4 xl:p-5">
-            <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
               <div>
                 <h2 className="text-[15px] font-semibold text-neutral-900">
                   {formatPeriodShort(data.month)} allocation
@@ -119,26 +118,19 @@ export function PromoBudgetFlowView() {
                   {data.total_promo_events} planned promo events · click a flow to compare forecast impact.
                 </p>
               </div>
-              {data.dominant_promo_type && (
-                <Badge variant="secondary" className="capitalize">
-                  {promoLabel(data.dominant_promo_type)} leads
-                </Badge>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-              <BudgetFlowGraph
-                month={data.month}
-                flow={topFlow}
-                activePromo={activePromo}
-                products={previewProducts}
-                onSelect={setPromoType}
-              />
               <FlowImpactPanel
                 flow={selectedFlow}
                 products={previewProducts}
               />
             </div>
+
+            <BudgetFlowGraph
+              month={data.month}
+              flow={topFlow}
+              activePromo={activePromo}
+              products={previewProducts}
+              onSelect={setPromoType}
+            />
           </section>
         </>
       )}
@@ -164,30 +156,30 @@ function BudgetFlowGraph({
     [activePromo, flow, products],
   )
   const activeNode = layout.promos.find((node) => node.item.promo_type === activePromo)
-  const left = { x: 58, y: 72, h: 224, w: 10 }
-  const promoX = 408
-  const productX = 805
-  const chartWidth = 920
-  const chartHeight = 360
+  const left = { x: 70, y: 94, h: 300, w: 12 }
+  const promoX = 540
+  const productX = 1110
+  const chartWidth = 1280
+  const chartHeight = 500
 
   return (
     <div className="space-y-3">
       <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
         <svg
           viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-          className="h-[240px] w-full sm:h-[270px] md:h-[300px]"
+          className="h-[440px] w-full 2xl:h-[560px]"
           role="img"
           aria-label={`${formatPeriodShort(month)} promo budget flow`}
         >
           <rect x="0" y="0" width={chartWidth} height={chartHeight} fill="white" />
 
-          <text x={left.x} y="34" className="fill-neutral-500 text-[11px] font-medium uppercase tracking-[0.18em]">
+          <text x={left.x} y="42" className="fill-neutral-500 text-[11px] font-medium uppercase tracking-[0.18em]">
             Monthly plan
           </text>
-          <text x={promoX - 4} y="34" className="fill-neutral-500 text-[11px] font-medium uppercase tracking-[0.18em]">
+          <text x={promoX - 4} y="42" className="fill-neutral-500 text-[11px] font-medium uppercase tracking-[0.18em]">
             Mechanics
           </text>
-          <text x={productX - 4} y="34" className="fill-neutral-500 text-[11px] font-medium uppercase tracking-[0.18em]">
+          <text x={productX - 4} y="42" className="fill-neutral-500 text-[11px] font-medium uppercase tracking-[0.18em]">
             Affected products
           </text>
 
@@ -289,7 +281,7 @@ function BudgetFlowGraph({
                 {compactProductLabel(node.product.label)}
               </text>
               <text x={productX + 20} y={node.center + 13} className="fill-neutral-500 text-[11px]">
-                {formatHl(node.product.forecast_hl)} forecast
+                {formatHl(node.product.forecast_hl)} → {formatHl(projectedWithPromo(node.product, activeNode?.item.avg_lift_pct))}
               </text>
             </g>
           )) : (
@@ -331,12 +323,12 @@ function buildFlowLayout(
   activePromo: string,
   products: AffectedProduct[],
 ): { promos: FlowNode[]; products: ProductNode[] } {
-  const promos = stackPromoNodes(flow, 58, 250, 12)
+  const promos = stackPromoNodes(flow, 80, 334, 16)
   const activeNode = promos.find((node) => node.item.promo_type === activePromo)
   if (!activeNode || products.length === 0) return { promos, products: [] }
   const weights = productWeights(products)
   const weightTotal = weights.reduce((sum, weight) => sum + weight, 0) || products.length
-  const productNodes = stackWeightedNodes(products.slice(0, 3), weights, weightTotal, 78, 204, 18)
+  const productNodes = stackWeightedNodes(products.slice(0, 3), weights, weightTotal, 100, 284, 28)
   return { promos, products: productNodes }
 }
 
@@ -448,14 +440,14 @@ function FlowImpactPanel({
 
   if (!flow) {
     return (
-      <aside className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-500">
+      <aside className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-500">
         Select a promo flow to compare forecast impact.
       </aside>
     )
   }
 
   return (
-    <aside className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+    <aside className="w-full xl:max-w-[560px]">
       <div className="grid grid-cols-3 gap-2">
         <ImpactMetric label="Base" value={formatHl(baseline)} />
         <ImpactMetric label="After promo" value={formatHl(withPromo)} />
@@ -479,7 +471,7 @@ function ImpactMetric({
   positive?: boolean
 }) {
   return (
-    <div className="rounded-lg bg-white px-2.5 py-2">
+    <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2.5">
       <div className="text-[9.5px] font-medium uppercase tracking-[0.12em] text-neutral-500">
         {label}
       </div>
