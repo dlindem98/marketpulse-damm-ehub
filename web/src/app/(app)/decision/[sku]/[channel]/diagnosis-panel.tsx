@@ -89,8 +89,8 @@ export async function DiagnosisPanel({
     // Full target series for this SKU × channel — every month we have a
     // target row for, not just at-risk ones (/api/gap filters those out
     // and would leave the chart's target line fragmented).
-    serverFetch<Array<{ period: string; target_hl: number }>>(`/api/targets${baseQ}`)
-      .catch(() => [] as Array<{ period: string; target_hl: number }>),
+    serverFetch<Array<{ period: string; period_start: string; target_hl: number }>>(`/api/targets${baseQ}`)
+      .catch(() => [] as Array<{ period: string; period_start: string; target_hl: number }>),
   ])
 
   // Monthly: ±4 months around target. Weekly: ~12 weeks centred on target.
@@ -177,12 +177,10 @@ export async function DiagnosisPanel({
         <div className="px-3 pb-3 pt-1">
           <ForecastChart
             points={focused}
-            // Use the full target series, not the at-risk-only gap rows —
-            // /api/gap drops months where this SKU is on plan, which would
-            // leave the target line fragmented.
-            targetByPeriod={Object.fromEntries(
-              targets.map((t) => [t.period, t.target_hl]),
-            )}
+            // Full target series (not at-risk-only — those would leave the
+            // target line fragmented on on-plan months). Pro-rated to weeks
+            // when the chart is in weekly mode, otherwise direct lookup.
+            targetByPeriod={buildTargetByPeriod(focused, targets, granularity)}
             promoWindows={forecast.promo_windows ?? []}
             events={forecast.events ?? []}
             signalsTimeline={signalsTimeline?.months ?? []}
@@ -609,6 +607,53 @@ function monthFromPeriod(period: string): { year: number; month: number } | null
     return Number.isFinite(y) && Number.isFinite(m) ? { year: y, month: m } : null
   }
   return null
+}
+
+/**
+ * Map each chart point to its target value.
+ *
+ *   Monthly: targets are already monthly; keyed by short period label
+ *            ("Oct.26") which matches the point's period exactly.
+ *   Weekly:  targets are still monthly (one row per calendar month), but
+ *            the chart points are weeks. Pro-rate each monthly target
+ *            across the days the week spends inside that month — the
+ *            same days-in-month split the backend uses in
+ *            services/weekly_split.py for the forecast itself. By
+ *            construction, summing the weekly targets within a month
+ *            equals the monthly target.
+ */
+function buildTargetByPeriod(
+  points: ForecastPoint[],
+  targets: Array<{ period: string; period_start: string; target_hl: number }>,
+  granularity: "month" | "week",
+): Record<string, number> {
+  if (granularity === "month") {
+    return Object.fromEntries(targets.map((t) => [t.period, t.target_hl]))
+  }
+  // Weekly: build a "YYYY-MM" → monthly target lookup, then for each
+  // weekly point sum (monthly_target / days_in_month) over the 7 days.
+  const monthlyByKey = new Map<string, number>()
+  for (const t of targets) {
+    monthlyByKey.set(t.period_start.slice(0, 7), t.target_hl)
+  }
+  const daysInMonth = (y: number, m: number) => new Date(y, m, 0).getDate()
+  const out: Record<string, number> = {}
+  for (const p of points) {
+    // p.period_start is the Monday of the ISO week (yyyy-mm-dd UTC).
+    const monday = new Date(`${p.period_start}T00:00:00Z`)
+    let total = 0
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday)
+      d.setUTCDate(d.getUTCDate() + i)
+      const y = d.getUTCFullYear()
+      const m = d.getUTCMonth() + 1
+      const monthTarget = monthlyByKey.get(`${y}-${String(m).padStart(2, "0")}`)
+      if (monthTarget == null) continue
+      total += monthTarget / daysInMonth(y, m)
+    }
+    if (total > 0) out[p.period] = total
+  }
+  return out
 }
 
 function humanPeriod(period: string): string {
