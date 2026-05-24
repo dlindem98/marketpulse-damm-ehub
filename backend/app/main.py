@@ -1,8 +1,7 @@
 """MarketPulse UK — FastAPI entry point.
 
-The 8 endpoints from PAGES.md are stubbed here returning mock data so the
-frontend can start consuming /openapi.json immediately. Each handler will
-be replaced with a real service call in Phase 5.
+Mounts every router under `/api/*`. Endpoint contracts and the OpenAPI
+schema flow to the Next.js frontend via `make types` (see README).
 """
 
 from contextlib import asynccontextmanager

@@ -16,6 +16,20 @@ The challenge asks for a working tool that uses UK sales history, monthly budget
 - Generates meeting briefs and market-pulse news context.
 - Provides debug endpoints to inspect generated Parquet snapshots.
 
+## What we deliver against the brief
+
+| Brief requirement | Implementation |
+|---|---|
+| UK sales history | `UK DATA.xlsx` parsed into `wide_monthly.parquet` |
+| Monthly budget or target estimate | `targets.parquet`, derived from prior-year actuals / trailing median (no official budget in source — see [DATA.md](DATA.md)) |
+| Promotion plan | `Damm Trade Plan - promotions.xlsx` parsed into `promos.parquet` |
+| Weekly and/or monthly forecast | Monthly trained forecast; weekly view is a deterministic ISO-week split |
+| Forecast vs target dashboard | `/` and `/decision/[sku]/[channel]` |
+| Deviations and causes | `/api/gap`, `/api/drivers`, SHAP explanations, external context |
+| Promotion impact | `/promos`, `/api/promos/roi`, promo windows for `GROCERY` |
+| Commercial recommendations | `/api/recommend` scenarios + `/api/simulate` what-if |
+| External sources documented | [DATA.md](DATA.md) |
+
 ## Current UI Routes
 
 | Route | Purpose | Main data |
@@ -145,3 +159,11 @@ Do not commit:
 - `backend/app/data/cache/`.
 
 Customer and retailer names are anonymized before display.
+
+## Docs map
+
+| File | Read it for |
+|---|---|
+| [README.md](README.md) | What the app does, how to run it, key snapshots, confidentiality (you're here). |
+| [DATA.md](DATA.md) | Source Excel layout, ETL, anonymization, external sources, evidence for the +5% event boost. |
+| [MODEL.md](MODEL.md) | Training pipeline, ensemble weights, CV accuracy, simulator math, LLM router, known limits. |

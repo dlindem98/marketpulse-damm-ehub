@@ -166,6 +166,28 @@ External enrichment is joined at monthly level and also shown in the UI.
 
 For future months, `/api/external-signals` uses the same calendar month from the prior available year as a proxy and labels it as `prior_year`.
 
+## Event importance and evidence for the boost
+
+UK beer demand reacts to one-off mega-events (football tournaments, Christmas). Our forecast model can't legitimately learn this from history because the events fire every 2–4 years — with a 3-year training window, LGB sees 0–1 instances and overfits. Instead, the ensemble step ([services/forecast/ensemble.py](backend/app/services/forecast/ensemble.py)) applies a small deterministic `+5%` boost to the baseline forecast for months containing a one-off mega-event (`World Cup`, `Euros`). Recurring events (Christmas, Wimbledon, bank holidays) are **not** boosted here because the model already captures them through seasonal features (`month`, `is_christmas_month`, `is_summer`, `uk_holidays_count`).
+
+The `+5%` figure is calibrated, not arbitrary:
+
+**Measured from our own `wide_monthly.parquet`** (all-brand UK retail, Jun+Jul vs Apr+May ratio):
+
+| Year | Jun+Jul / Apr+May | Notes |
+|---|---|---|
+| 2023 | 1.279 | No major sport (baseline) |
+| 2024 | 1.011 | **Euros 2024** |
+| 2025 | 0.982 | Wimbledon only |
+
+Detrended Euros lift (2024 ratio / 2025 ratio): **≈ +3%** at the monthly category level.
+
+**Cross-check vs industry literature**: WSTA / The Grocer commonly cite **5–15% beer lift during major tournament match days**, dropping to ≈3–7% at the monthly aggregate because most of the lift concentrates on match-day weekends rather than spreading evenly across the month.
+
+We picked **+5%** as a calibrated midpoint — above our measured 2024 Euros baseline but conservative against the wider literature band. Implementation: `ONEOFF_BOOST = 0.05` in [services/calendar.py](backend/app/services/calendar.py).
+
+Per-event importance levels (`high` / `medium` / `low`) live in the same file and drive a separate multiplier used by the *simulator's promo lift* — see [MODEL.md](MODEL.md) for that flow.
+
 ## Generated Snapshots
 
 Runtime snapshots live in:

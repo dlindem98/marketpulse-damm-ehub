@@ -82,6 +82,30 @@ EXTERNAL_COLS: Final[list[str]] = [
     "temp_c_mean", "temp_c_anomaly",
     "trends_estrella", "trends_lager", "trends_beer",
     "ons_retail_index", "ons_food_drink_index",
+    # NOTE: n_planned_promos / avg_planned_discount live in wide_monthly
+    # (added by attach_planned_promos in etl.py) but we deliberately keep
+    # them OUT of the model. A clean A/B on identical wide_monthly
+    # measured ZERO MAPE delta at both brand and SKU level (Δ=0.00pp in
+    # 3-fold CV) because the Damm Trade Plan only covers months from
+    # late 2025 onwards — in training data spanning 2023-01..2026-04
+    # both columns are zero for ~98% of rows, leaving LightGBM nothing
+    # to split on. To make these features earn their place we'd need
+    # historical promo flags reconstructed from the actuals (price-drops
+    # detected in past sales) or a retrospective extension of the trade
+    # plan; neither exists in the provided dataset. The columns stay in
+    # wide_monthly because the simulator and the decision-page "Planned
+    # promos" card both consume them at runtime.
+    # NOTE: event_importance_score / event_high / event_med / event_low live
+    # in wide_monthly.parquet (added by attach_event_importance in etl.py)
+    # but we deliberately keep them OUT of the model. Adding them as
+    # features measurably degraded MAPE (+3% brand-level, +15% SKU-level
+    # in 3-fold CV) because the recurring events (Christmas, Boxing Day,
+    # Wimbledon) are already captured by `month` + `is_christmas_month` +
+    # `uk_holidays_count`, while the truly one-off events (World Cup,
+    # Euros) only fire every 4 years — not enough history for LGB to learn
+    # signal. The simulator (services/forecast/simulate.py) still consumes
+    # them at runtime via event_boost_for_month() where the deterministic
+    # multiplicative boost works better than a learned coefficient.
 ]
 
 

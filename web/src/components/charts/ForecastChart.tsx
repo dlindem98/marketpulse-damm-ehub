@@ -22,13 +22,11 @@ import {
 } from "recharts"
 import type { TooltipProps } from "recharts"
 import { formatHl, formatPeriod, formatPeriodShort } from "@/lib/format"
-import { driverLabel } from "@/lib/driver-labels"
 import type { components } from "@/lib/api.gen"
 
 type ForecastPoint = components["schemas"]["ForecastPoint"]
 type PromoWindow = components["schemas"]["PromoWindow"]
 type CalendarEvent = components["schemas"]["CalendarEvent"]
-type Driver = components["schemas"]["Driver"]
 type PeriodSignals = components["schemas"]["PeriodSignals"]
 
 type ChartDatum = {
@@ -46,20 +44,12 @@ export function ForecastChart({
   targetByPeriod,
   promoWindows,
   events,
-  drivers,
   signalsTimeline,
 }: {
   points: ForecastPoint[]
   targetByPeriod?: Record<string, number>
   promoWindows?: PromoWindow[]
   events?: CalendarEvent[]
-  /**
-   * Optional SHAP drivers for this SKU × sub_channel. Surfaced in the
-   * tooltip so the user sees what the model leaned on without leaving
-   * the chart. Same drivers across every point (drivers are SKU-level,
-   * not period-level — see backend/app/routers/drivers.py).
-   */
-  drivers?: Driver[]
   /**
    * Per-month external context (weather, search, retail, events). When
    * supplied, the chart renders a labelled event-chip strip above the
@@ -166,7 +156,6 @@ export function ForecastChart({
               <ForecastTooltip
                 promoByPeriod={promoByPeriod}
                 eventsByPeriod={eventsByPeriod}
-                drivers={drivers ?? []}
                 signalsByPeriod={signalsByPeriod}
               />
             }
@@ -252,12 +241,11 @@ type ForecastTooltipProps = TooltipProps<number, string> & {
   label?: string
   promoByPeriod: Map<string, PromoWindow>
   eventsByPeriod: Map<string, CalendarEvent[]>
-  drivers: Driver[]
   signalsByPeriod: Map<string, PeriodSignals>
 }
 
 function ForecastTooltip({
-  active, payload, label, promoByPeriod, eventsByPeriod, drivers, signalsByPeriod,
+  active, payload, label, promoByPeriod, eventsByPeriod, signalsByPeriod,
 }: ForecastTooltipProps) {
   if (!active || !payload?.length) return null
   // recharts may stack multiple payload entries (band, point, target) — first
@@ -273,7 +261,6 @@ function ForecastTooltip({
   // Band width as ±% of the point — helps the user trust or distrust the
   // figure (tight = model is sure; wide = hedge).
   const bandRel = forecast > 0 ? (datum.hi80 - datum.lo80) / (2 * forecast) : 0
-  const topDrivers = drivers.slice(0, 2)
   const signals = signalsByPeriod.get(String(label))
 
   // Build per-period external context lines. Only notable ones — skip
@@ -342,49 +329,11 @@ function ForecastTooltip({
         )}
       </div>
 
-      {/* Drivers — what the model leaned on for this SKU. SKU-level, not
-          period-level, so the same set shows for every point. Still useful
-          context inline with the number. */}
-      {topDrivers.length > 0 && (
-        <div className="mt-2 pt-2 border-t border-neutral-100">
-          <div className="text-[10px] uppercase tracking-[0.14em] text-neutral-400 font-medium mb-1">
-            What drives it
-          </div>
-          <ul className="space-y-0.5">
-            {topDrivers.map((d, i) => {
-              const isUp = d.direction === "positive"
-              return (
-                <li key={i} className="flex items-center justify-between gap-3 tabular-nums">
-                  <span className="flex items-center gap-1.5 min-w-0">
-                    <span
-                      className={
-                        isUp ? "text-[var(--positive)]" : "text-[var(--negative)]"
-                      }
-                      aria-hidden
-                    >
-                      {isUp ? "↑" : "↓"}
-                    </span>
-                    <span className="text-neutral-700 truncate text-[11.5px]">
-                      {driverLabel(d.feature)}
-                    </span>
-                  </span>
-                  <span
-                    className={`text-[11px] shrink-0 ${
-                      isUp ? "text-[var(--positive)]" : "text-[var(--negative)]"
-                    }`}
-                  >
-                    {isUp ? "+" : "−"}{formatHl(Math.abs(d.shap_value))}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      )}
-
       {/* Period-specific context — promo / event / external state for THIS
           hovered point. Lets the user see *why* this month spikes or dips
-          without leaving the chart. */}
+          without leaving the chart. SKU-level SHAP drivers live in the
+          right-rail "Why this forecast" card; repeating them in every
+          tooltip hover was redundant. */}
       {(promo || events.length > 0 || externalLines.length > 0) && (
         <div className="mt-2 pt-2 border-t border-neutral-100 space-y-1">
           {promo && (

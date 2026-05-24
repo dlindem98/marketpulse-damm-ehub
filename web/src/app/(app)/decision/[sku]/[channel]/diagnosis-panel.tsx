@@ -69,7 +69,7 @@ export async function DiagnosisPanel({
   const baseQ = `?sku=${encodeURIComponent(sku)}&sub_channel=${encodeURIComponent(sub_channel)}`
   const fcQ = `${baseQ}&granularity=${granularity}`
 
-  const [forecast, drivers, rec, signals, signalsTimeline] = await Promise.all([
+  const [forecast, drivers, rec, signals, signalsTimeline, targets] = await Promise.all([
     serverFetch<ForecastSeries>(`/api/forecast${fcQ}`),
     serverFetch<Driver[]>(`/api/drivers${baseQ}`),
     targetPeriod
@@ -88,6 +88,11 @@ export async function DiagnosisPanel({
     // strip above the chart and the per-period state in the tooltip.
     serverFetch<ExternalSignalsTimelineT>(`/api/external-signals/timeline${baseQ}`)
       .catch(() => null),
+    // Full target series for this SKU × channel — every month we have a
+    // target row for, not just at-risk ones (/api/gap filters those out
+    // and would leave the chart's target line fragmented).
+    serverFetch<Array<{ period: string; target_hl: number }>>(`/api/targets${baseQ}`)
+      .catch(() => [] as Array<{ period: string; target_hl: number }>),
   ])
 
   // Monthly: ±4 months around target. Weekly: ~12 weeks centred on target.
@@ -140,7 +145,7 @@ export async function DiagnosisPanel({
     : []
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-3 min-h-[calc(100vh-160px)]">
       {/* Narrative — quiet headline above the chart. Hidden on LLM fallback. */}
       {narrative && (
         <section>
@@ -172,13 +177,51 @@ export async function DiagnosisPanel({
         <div className="px-3 pb-3 pt-1">
           <ForecastChart
             points={focused}
+            // Use the full target series, not the at-risk-only gap rows —
+            // /api/gap drops months where this SKU is on plan, which would
+            // leave the target line fragmented.
+            targetByPeriod={Object.fromEntries(
+              targets.map((t) => [t.period, t.target_hl]),
+            )}
             promoWindows={forecast.promo_windows ?? []}
             events={forecast.events ?? []}
-            drivers={drivers}
             signalsTimeline={signalsTimeline?.months ?? []}
           />
+          {/* Inline legend — written in business language so a Commercial
+              Manager doesn't have to know what "80% confidence band" means
+              (it's the model's likely range, but the label hides the
+              jargon; full definition lives in the title tooltip). */}
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-neutral-500">
+            <span
+              className="inline-flex items-center gap-1.5"
+              title="The model's single best-guess number for each month."
+            >
+              <span className="inline-block h-[2px] w-4 bg-[var(--chart-1)]" />
+              Forecast
+            </span>
+            <span
+              className="inline-flex items-center gap-1.5"
+              title="The model expects the real number to land inside this grey range 80% of the time. Wide range = the model is less sure (Volatile). Narrow range = high confidence (Bullish)."
+            >
+              <span className="inline-block h-2 w-4 rounded-sm bg-[var(--chart-1)]/15" />
+              Likely range
+            </span>
+            <span
+              className="inline-flex items-center gap-1.5"
+              title="The budget for this SKU × channel for each month, what we're aiming for."
+            >
+              <span
+                className="inline-block h-[1px] w-4 border-t border-dashed"
+                style={{ borderColor: "var(--muted-foreground)" }}
+              />
+              Target
+            </span>
+          </div>
         </div>
-        <ExternalContextLine signals={signals} />
+        {/* External "context" line removed — the same numbers (weather /
+            search trend / events) now live in the per-period chart tooltip,
+            where they're tied to the specific month the user is asking
+            about. A bare data line at the bottom wasn't actionable. */}
         {narrative && narrative.bullets?.length > 0 && (
           <div className="border-t border-neutral-200 px-5 py-3 text-[12.5px] text-neutral-600">
             {narrative.bullets[0]}
@@ -251,16 +294,18 @@ export async function DiagnosisPanel({
       </div>
 
       {/* Three plays the LLM proposed. Each card → Simulator prefilled with
-          that scenario's months/promo. The user picks a vibe (safer / sweet
-          spot / bolder) and lands in the sandbox ready to tweak. */}
+          that scenario's months/promo. `flex-1` on the section makes this
+          row absorb the remaining viewport height, and `h-full` on each
+          card stretches the surfaces with it — so the page fits without
+          scrolling and the actions get the prominence they deserve. */}
       {scenariosOrdered.length > 0 && (
-        <section>
+        <section className="flex-1 flex flex-col min-h-[160px]">
           <header className="mb-3">
             <h3 className="text-[13px] font-semibold text-neutral-900">
               Pick a play
             </h3>
           </header>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
             {scenariosOrdered.map((s) => (
               <ScenarioCard
                 key={s.label}

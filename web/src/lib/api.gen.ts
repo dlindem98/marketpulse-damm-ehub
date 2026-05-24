@@ -92,6 +92,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Targets
+         * @description Return every target row for one SKU × sub_channel as a list of
+         *     {period, target_hl, source} entries, sorted by period.
+         *
+         *     Period format is "Mon.YY" to match what the FE uses everywhere else.
+         */
+        get: operations["get_targets_api_targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/drivers": {
         parameters: {
             query?: never;
@@ -614,6 +637,9 @@ export interface components {
          * @description A calendar event (bank holiday, sport final, etc.) relevant for beer demand.
          *
          *     Rendered as a dashed vertical line with a label on the forecast chart.
+         *     The `importance` level drives the simulator's event-boost multiplier:
+         *     a promo overlapping a HIGH event (World Cup final, Christmas) lifts
+         *     more than the same promo in a quiet month.
          */
         CalendarEvent: {
             /** Period */
@@ -625,6 +651,12 @@ export interface components {
              * @enum {string}
              */
             kind: "holiday" | "sport" | "weather";
+            /**
+             * Importance
+             * @default medium
+             * @enum {string}
+             */
+            importance: "high" | "medium" | "low";
         };
         /** ChatMessage */
         ChatMessage: {
@@ -1180,7 +1212,16 @@ export interface components {
             sub_channel: string;
             /** Months */
             months: string[];
-            /** Discount Pct */
+            /**
+             * Action Type
+             * @default promo
+             * @enum {string}
+             */
+            action_type: "promo" | "brand-focus" | "channel-focus" | "commercial-effort";
+            /**
+             * Discount Pct
+             * @default 0
+             */
             discount_pct: number;
             /**
              * Promo Type
@@ -1188,6 +1229,12 @@ export interface components {
              * @enum {string}
              */
             promo_type: "multi-buy" | "price-cut" | "rollback" | "clearance" | "listing";
+            /**
+             * Effort Level
+             * @default medium
+             * @enum {string}
+             */
+            effort_level: "low" | "medium" | "high";
         };
         /** SimulationResult */
         SimulationResult: {
@@ -1217,6 +1264,11 @@ export interface components {
              * @default 0
              */
             applied_lift_pct: number;
+            /**
+             * Event Boost Avg
+             * @default 1
+             */
+            event_boost_avg: number;
             /** Notes */
             notes: string;
         };
@@ -1427,6 +1479,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GapItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_targets_api_targets_get: {
+        parameters: {
+            query: {
+                sku: string;
+                sub_channel: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

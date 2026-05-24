@@ -23,6 +23,7 @@ import joblib
 import numpy as np
 import polars as pl
 
+from app.services.calendar import build_events, oneoff_event_boost_for_month
 from app.services.forecast.features import build_features
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -119,6 +120,26 @@ def _generate_lgb_forecast() -> pl.DataFrame:
             ] if c in last_row.columns
         }
 
+        # Event-importance lookup. Built once per series so we can stamp
+        # the right per-future-month event flags below. Spans the next
+        # HORIZON months from the series's last known date.
+        import datetime as _dt
+        _last = last_row["date"].item()
+        _ev_start = _dt.date(_last.year, _last.month, 1)
+        _ev_end_y, _ev_end_m = _last.year, _last.month + HORIZON_MONTHS + 1
+        while _ev_end_m > 12:
+            _ev_end_m -= 12
+            _ev_end_y += 1
+        _ev_end = _dt.date(_ev_end_y, _ev_end_m, 1)
+        _events = build_events(_ev_start, _ev_end)
+        _rank = {"high": 3, "medium": 2, "low": 1}
+        _evt_by_month: dict[_dt.date, int] = {}
+        for _e in _events:
+            _em = _dt.date.fromisoformat(_e.period)
+            _s = _rank.get(_e.importance, 0)
+            if _s > _evt_by_month.get(_em, 0):
+                _evt_by_month[_em] = _s
+
         rolling_history = list(history_hl)
         for h in range(1, HORIZON_MONTHS + 1):
             future_y = last_date.year
@@ -160,6 +181,14 @@ def _generate_lgb_forecast() -> pl.DataFrame:
                 ext_vals.get("ons_retail_index", 0.0),
                 ext_vals.get("ons_food_drink_index", 0.0),
             ]
+            # NB: planned-promo columns (n_planned_promos, avg_planned_discount)
+            # are NOT model features — see the EXTERNAL_COLS comment in
+            # features.py for the A/B result and reasoning. The columns still
+            # exist in wide_monthly for runtime consumers (simulator + UI).
+            # NB: event-importance columns are NOT included as model features
+            # — see EXTERNAL_COLS comment in features.py. They live in the
+            # data but the model does worse with them; the simulator uses
+            # them deterministically at runtime instead.
             # Target-encoded categoricals
             row_features += [brand_te, sub_channel_te, sales_channel_te]
 
@@ -324,6 +353,31 @@ def main() -> int:
     print(f"      ensembled {len(forecast):,} rows  "
           f"(materials={forecast['material_id'].n_unique()}, "
           f"channels={forecast['sub_channel'].n_unique()})")
+
+    # ── One-off mega-event boost ────────────────────────────────────────
+    # Apply a deterministic post-forecast multiplier for months containing
+    # World Cup / Euros — these are once-every-2-4-years events that the
+    # LightGBM model can't legitimately learn from a 3-year training window.
+    # Recurring events (Christmas, Wimbledon, bank holidays) are already
+    # captured by the model's seasonality features, so they're NOT boosted
+    # here (would double-count).
+    fc_dates = forecast["date"].unique().to_list()
+    _events = build_events(min(fc_dates), max(fc_dates))
+    boost_by_date = {d: oneoff_event_boost_for_month(d.isoformat(), _events) for d in fc_dates}
+    n_boosted = sum(1 for b in boost_by_date.values() if b > 1.0)
+    if n_boosted > 0:
+        boosted_months = [d.isoformat() for d, b in boost_by_date.items() if b > 1.0]
+        print(f"      one-off boost: +{(max(boost_by_date.values())-1)*100:.0f}% applied to "
+              f"{n_boosted} month-buckets ({sorted(boosted_months)})")
+        forecast = forecast.with_columns(
+            pl.col("date").replace_strict(boost_by_date, return_dtype=pl.Float64).alias("_boost"),
+        ).with_columns(
+            (pl.col("Hl_hat_p10") * pl.col("_boost")).alias("Hl_hat_p10"),
+            (pl.col("Hl_hat_p50") * pl.col("_boost")).alias("Hl_hat_p50"),
+            (pl.col("Hl_hat_p90") * pl.col("_boost")).alias("Hl_hat_p90"),
+        ).drop("_boost")
+    else:
+        print("      one-off boost: no World Cup / Euros months in horizon — skipped")
 
     print(f"\n[4/4] persisting forecast.parquet + weights.json")
     forecast.write_parquet(SNAPSHOTS / "forecast.parquet")

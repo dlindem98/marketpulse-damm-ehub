@@ -8,7 +8,7 @@
   upper quantile by a learned lift signal derived from the trade plan's
   monthly promo coverage. This is **not** Moirai-1.1 (that would need the
   `uni2ts` package which pins an old scipy, incompatible with statsmodels;
-  see KNOWN-LIMITATIONS in DECISIONS.md). It is, however, a real
+  see "Known limits" in MODEL.md). It is, however, a real
   covariate-aware ensemble member that gives the GROCERY sub-channel a
   promo-aware vote in STEP 5's ensemble — empty bytes in non-GROCERY series.
 

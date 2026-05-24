@@ -9,7 +9,7 @@
 
 import { useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { AlertTriangle, Play } from "lucide-react"
+import { AlertTriangle, Play, Sparkles } from "lucide-react"
 import useSWR from "swr"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
@@ -26,6 +26,22 @@ type SimResult = components["schemas"]["SimulationResult"]
 
 const PROMO_TYPES = ["multi-buy", "price-cut", "rollback", "clearance", "listing"] as const
 type PromoType = (typeof PROMO_TYPES)[number]
+
+const ACTION_TYPES = ["promo", "brand-focus", "channel-focus", "commercial-effort"] as const
+type ActionType = (typeof ACTION_TYPES)[number]
+
+const EFFORT_LEVELS = ["low", "medium", "high"] as const
+type EffortLevel = (typeof EFFORT_LEVELS)[number]
+
+const ACTION_META: Record<
+  ActionType,
+  { title: string; hint: string }
+> = {
+  "promo":             { title: "Trade promo",         hint: "Discount-driven lift on shelf. Highest impact, carries discount cost." },
+  "brand-focus":       { title: "Brand push",          hint: "Marketing investment in the brand. Lifts pull-through, no discount cost." },
+  "channel-focus":     { title: "Channel investment",  hint: "Extra effort inside this sub-channel (listings, fixture, activation)." },
+  "commercial-effort": { title: "Commercial effort",   hint: "Sales-force push — order frequency, trade-up conversations." },
+}
 
 const fetcher = async (url: string): Promise<ForecastSeries> => {
   const res = await fetch(url, { cache: "no-store" })
@@ -53,12 +69,20 @@ export function SimulatePanel({
     Number.isFinite(prefillDiscount) && prefillDiscount > 0 && prefillDiscount <= 30
       ? prefillDiscount
       : 10
+  // True when the user arrived from a "Pick a play" recommendation card
+  // (any prefill param present). Drives the recommendation banner + the
+  // simplified default view.
+  const fromRecommendation = prefillMonths.length > 0
+    || search.get("promo") !== null
+    || search.get("discount") !== null
 
   const { data: forecast, error: forecastError } = useSWR<ForecastSeries>(
     `/api/forecast?sku=${encodeURIComponent(sku)}&sub_channel=${encodeURIComponent(sub_channel)}`,
     fetcher,
   )
 
+  const [actionType, setActionType] = useState<ActionType>("promo")
+  const [effortLevel, setEffortLevel] = useState<EffortLevel>("medium")
   const [discount, setDiscount] = useState(initialDiscount)
   const [promoType, setPromoType] = useState<PromoType>(prefillPromo)
   const [selectedMonths, setSelectedMonths] = useState<string[]>(prefillMonths)
@@ -124,8 +148,12 @@ export function SimulatePanel({
           sku,
           sub_channel,
           months: activeMonths,
-          discount_pct: discount,
+          action_type: actionType,
+          // Promo-only fields — backend ignores them for other types.
+          discount_pct: actionType === "promo" ? discount : 0,
           promo_type: promoType,
+          // Effort-only field — backend ignores for promo.
+          effort_level: effortLevel,
         }),
       })
       if (!res.ok) throw new Error(`API ${res.status}`)
@@ -155,6 +183,38 @@ export function SimulatePanel({
         </div>
       </header>
 
+      {/* Recommendation banner — only shown when arriving from a Pick-a-play
+          card. Tells the user "we've pre-filled this from the recommendation,
+          hit run or tweak below". Removes the guesswork of which controls
+          matter. */}
+      {fromRecommendation && (
+        <div className="flex items-start gap-3 rounded-xl border border-neutral-900 bg-neutral-900 px-4 py-3 text-white">
+          <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-white/70" />
+          <div className="flex-1 min-w-0">
+            <div className="text-[10.5px] font-medium uppercase tracking-[0.16em] text-white/60">
+              Pre-filled from recommendation
+            </div>
+            <div className="mt-1 text-[13px] text-white/90 leading-snug">
+              {actionType === "promo"
+                ? `${promoLabel(promoType)} at ${discount}% across ${activeMonths.length || 0} month${activeMonths.length === 1 ? "" : "s"}`
+                : `${ACTION_META[actionType].title} (${effortLevel}) across ${activeMonths.length || 0} month${activeMonths.length === 1 ? "" : "s"}`
+              }
+              {" — hit run, or tweak the controls below."}
+            </div>
+          </div>
+          <Button
+            onClick={handleRun}
+            disabled={activeMonths.length === 0 || pending || !baselinePoints.length}
+            size="sm"
+            variant="secondary"
+            className="shrink-0 gap-1.5"
+          >
+            <Play className="h-3 w-3" />
+            {pending ? "Running…" : "Run as-is"}
+          </Button>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <MetricCard
           label="Current gap"
@@ -167,7 +227,11 @@ export function SimulatePanel({
         />
         <MetricCard
           label="Selected action"
-          value={`${promoLabel(promoType)} · ${discount}%`}
+          value={
+            actionType === "promo"
+              ? `${promoLabel(promoType)} · ${discount}%`
+              : `${ACTION_META[actionType].title} · ${effortLevel}`
+          }
           sub={`${activeMonths.length || 0} month${activeMonths.length === 1 ? "" : "s"}`}
         />
         <MetricCard
@@ -234,13 +298,47 @@ export function SimulatePanel({
         <aside className="rounded-2xl border border-neutral-200 bg-white p-4">
           <h3 className="text-[13px] font-semibold text-neutral-900">Scenario controls</h3>
           <p className="mt-0.5 text-[12px] text-neutral-500">
-            Choose the promo mechanic and months to test.
+            Pick an action, the months, and the intensity.
           </p>
 
           <div className="mt-5 space-y-5">
+            {/* Action type — drives which secondary controls show below. */}
             <div>
               <label className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-neutral-500">
-                Promo months
+                Action type
+              </label>
+              <div className="mt-2 grid grid-cols-2 gap-1.5">
+                {ACTION_TYPES.map((t) => {
+                  const active = actionType === t
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => {
+                        setResult(null)
+                        setActionType(t)
+                      }}
+                      title={ACTION_META[t].hint}
+                      className={[
+                        "rounded-md border px-2 py-1.5 text-[11.5px] font-medium transition-colors text-left",
+                        active
+                          ? "border-neutral-900 bg-neutral-900 text-white"
+                          : "border-neutral-200 text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900",
+                      ].join(" ")}
+                    >
+                      {ACTION_META[t].title}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="mt-1.5 text-[11px] text-neutral-500 leading-snug">
+                {ACTION_META[actionType].hint}
+              </p>
+            </div>
+
+            <div>
+              <label className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+                Months
               </label>
               <div className="mt-2 grid grid-cols-3 gap-1.5">
                 {baselinePoints.map((p) => {
@@ -271,44 +369,81 @@ export function SimulatePanel({
               </div>
             </div>
 
-            <div>
-              <label className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-neutral-500">
-                Discount <span className="font-semibold text-neutral-900">{discount}%</span>
-              </label>
-              <Slider
-                value={[discount]}
-                onValueChange={(v: number[]) => {
-                  setResult(null)
-                  setDiscount(v[0])
-                }}
-                min={0}
-                max={30}
-                step={1}
-                className="mt-3"
-              />
-            </div>
+            {/* Promo-only controls: discount slider + promo type. */}
+            {actionType === "promo" && (
+              <>
+                <div>
+                  <label className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+                    Discount <span className="font-semibold text-neutral-900">{discount}%</span>
+                  </label>
+                  <Slider
+                    value={[discount]}
+                    onValueChange={(v: number[]) => {
+                      setResult(null)
+                      setDiscount(v[0])
+                    }}
+                    min={0}
+                    max={30}
+                    step={1}
+                    className="mt-3"
+                  />
+                </div>
 
-            <div>
-              <label className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-neutral-500">
-                Promo type
-              </label>
-              <Select
-                value={promoType}
-                onValueChange={(v) => {
-                  setResult(null)
-                  setPromoType(v as PromoType)
-                }}
-              >
-                <SelectTrigger className="mt-2">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PROMO_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>{promoLabel(t)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                <div>
+                  <label className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+                    Promo mechanic
+                  </label>
+                  <Select
+                    value={promoType}
+                    onValueChange={(v) => {
+                      setResult(null)
+                      setPromoType(v as PromoType)
+                    }}
+                  >
+                    <SelectTrigger className="mt-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROMO_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>{promoLabel(t)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+
+            {/* Non-promo controls: effort level (low / medium / high). */}
+            {actionType !== "promo" && (
+              <div>
+                <label className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+                  Effort level
+                </label>
+                <div className="mt-2 grid grid-cols-3 gap-1.5">
+                  {EFFORT_LEVELS.map((lvl) => {
+                    const active = effortLevel === lvl
+                    return (
+                      <button
+                        key={lvl}
+                        type="button"
+                        onClick={() => {
+                          setResult(null)
+                          setEffortLevel(lvl)
+                        }}
+                        className={[
+                          "rounded-md border px-2 py-1.5 text-[12px] font-medium capitalize transition-colors",
+                          active
+                            ? "border-neutral-900 bg-neutral-900 text-white"
+                            : "border-neutral-200 text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900",
+                        ].join(" ")}
+                      >
+                        {lvl}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             <Button
               onClick={handleRun}

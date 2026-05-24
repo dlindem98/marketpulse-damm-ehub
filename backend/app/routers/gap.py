@@ -159,3 +159,40 @@ def get_gap(
             gap_gbp=(gap_hl_val * rate) if rate is not None else None,
         ))
     return out
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# /api/targets — full target series for one SKU × sub_channel (every month
+# we have a target row for). Distinct from /api/gap which filters to at-risk
+# SKUs only. Used by the decision-page chart so the dashed target line is
+# continuous instead of fragmented at "on-plan" months that /api/gap drops.
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.get("/targets")
+def get_targets(
+    sku: str = Query(...),
+    sub_channel: str = Query(...),
+):
+    """Return every target row for one SKU × sub_channel as a list of
+    {period, target_hl, source} entries, sorted by period.
+
+    Period format is "Mon.YY" to match what the FE uses everywhere else.
+    """
+    if not TARGETS.is_file():
+        raise HTTPException(status_code=503, detail="targets.parquet missing")
+    df = (
+        pl.read_parquet(TARGETS)
+        .filter(
+            (pl.col("material_id") == sku) & (pl.col("sub_channel") == sub_channel)
+        )
+        .sort("date")
+    )
+    return [
+        {
+            "period": r["date"].strftime("%b.%y"),
+            "period_start": r["date"].isoformat(),
+            "target_hl": float(r["target_hl"]),
+            "source": r.get("target_source"),
+        }
+        for r in df.iter_rows(named=True)
+    ]

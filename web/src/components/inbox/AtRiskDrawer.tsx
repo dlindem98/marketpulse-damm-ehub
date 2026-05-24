@@ -144,7 +144,7 @@ export function AtRiskDrawer({
         <header className="flex items-start justify-between gap-4 px-6 pt-2 pb-4 shrink-0">
           <div className="min-w-0">
             <div className="text-[10.5px] uppercase tracking-[0.18em] text-neutral-500 font-medium">
-              For your call
+              For your call · SKUs at risk
             </div>
             <h2 className="text-[20px] font-semibold tracking-tight text-neutral-900 mt-1 truncate">
               {customerLabel}

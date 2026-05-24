@@ -19,7 +19,7 @@ import { PageWidthWrapper } from "@/components/shell/PageWidthWrapper"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Sparkline } from "@/components/ui/sparkline"
 import { serverFetch } from "@/lib/api"
-import { formatGBP, formatPercent, gapTone, formatPeriod } from "@/lib/format"
+import { formatGBP, formatHl, gapTone, formatPeriod } from "@/lib/format"
 import { skuLabel, channelLabel } from "@/lib/meta"
 import {
   CUSTOMER_LABELS,
@@ -36,6 +36,19 @@ import type { components } from "@/lib/api.gen"
 
 type GapItem = components["schemas"]["GapItem"]
 type Meta = components["schemas"]["MetaResponse"]
+
+/** One row in the at-risk drawer — aggregated across all months this SKU
+ *  is forecast below target, with the worst single month kept for the
+ *  deep-link target so the user lands on the most informative period. */
+type AtRiskAggregateRow = {
+  sku: string
+  sub_channel: string
+  worst: GapItem            // worst-gap month (for click destination + label)
+  monthsAtRisk: number      // how many months in the horizon are negative
+  totalGapHl: number        // sum of gap_hl across those months
+  totalGapGbp: number | null
+  history_hl: number[]
+}
 type Pulse = components["schemas"]["Pulse"]
 type BrandRollup = components["schemas"]["BrandRollup"]
 type SubChannelRollup = components["schemas"]["SubChannelRollup"]
@@ -90,11 +103,43 @@ async function Inbox({ customer }: { customer: Customer | null }) {
       ])
     : [brands, channels]
 
-  // For the drawer — filter the at-risk SKUs to the active customer.
-  const negatives = customer
-    ? gaps
-        .filter((g) => gapMatchesCustomer(g, customer) && g.gap_hl < 0)
-        .sort((a, b) => a.gap_hl - b.gap_hl)
+  // For the drawer — aggregate at-risk months per SKU instead of picking
+  // one representative month. A SKU at risk in Jul, Aug, and Oct is more
+  // urgent than one only at risk in Jul, and the call agenda should reflect
+  // the full pain, not a single arbitrary month. We keep the worst month
+  // around for the deep-link (so clicking lands on the most informative
+  // detail page) but the row displays the cumulative impact.
+  const negatives: AtRiskAggregateRow[] = customer
+    ? (() => {
+        const customerNegatives = gaps.filter(
+          (g) => gapMatchesCustomer(g, customer) && g.gap_hl < 0,
+        )
+        const bySku = new Map<string, AtRiskAggregateRow>()
+        for (const g of customerNegatives) {
+          const key = `${g.sku}|${g.sub_channel}`
+          const cur = bySku.get(key)
+          if (!cur) {
+            bySku.set(key, {
+              sku: g.sku,
+              sub_channel: g.sub_channel,
+              worst: g,
+              monthsAtRisk: 1,
+              totalGapHl: g.gap_hl,
+              totalGapGbp: g.gap_gbp ?? null,
+              history_hl: g.history_hl ?? [],
+            })
+          } else {
+            cur.monthsAtRisk += 1
+            cur.totalGapHl += g.gap_hl
+            if (g.gap_gbp != null) {
+              cur.totalGapGbp = (cur.totalGapGbp ?? 0) + g.gap_gbp
+            }
+            if (g.gap_hl < cur.worst.gap_hl) cur.worst = g
+          }
+        }
+        // Sort by the worst total impact first.
+        return [...bySku.values()].sort((a, b) => a.totalGapHl - b.totalGapHl)
+      })()
     : []
 
   // Prefer the soonest UPCOMING call for this customer — past meetings live
@@ -164,10 +209,10 @@ async function Inbox({ customer }: { customer: Customer | null }) {
             </div>
           ) : (
             <ul className="flex flex-col gap-2">
-              {negatives.map((g) => (
+              {negatives.map((row) => (
                 <InboxRow
-                  key={`${g.sku}-${g.sub_channel}-${g.period}`}
-                  gap={g}
+                  key={`${row.sku}-${row.sub_channel}`}
+                  row={row}
                   meta={meta}
                 />
               ))}
@@ -195,11 +240,23 @@ const TONE_ICON: Record<ReturnType<typeof gapTone>, string> = {
   neutral:  "text-neutral-500",
 }
 
-function InboxRow({ gap, meta }: { gap: GapItem; meta: Meta }) {
-  const tone = gapTone(gap.gap_pct)
-  const href = `/decision/${encodeURIComponent(gap.sku)}/${encodeURIComponent(
-    gap.sub_channel,
-  )}?period=${encodeURIComponent(gap.period)}`
+function InboxRow({ row, meta }: { row: AtRiskAggregateRow; meta: Meta }) {
+  // The row's pill colour tracks the *worst-month* tone (the user's
+  // attention should match the deepest pain point, not the average).
+  const tone = gapTone(row.worst.gap_pct)
+  // Deep-link to the worst month — the decision page lands on the most
+  // informative period for this SKU × channel.
+  const href = `/decision/${encodeURIComponent(row.sku)}/${encodeURIComponent(
+    row.sub_channel,
+  )}?period=${encodeURIComponent(row.worst.period)}`
+
+  // Subtitle copy: lead with channel, then "X months at risk · worst Jul".
+  // Avoids the previous "forecast for Jul 2026" which made it look like
+  // the SKU only had one problem month.
+  const monthsPhrase =
+    row.monthsAtRisk === 1
+      ? `1 month at risk · ${formatPeriod(row.worst.period)}`
+      : `${row.monthsAtRisk} months at risk · worst ${formatPeriod(row.worst.period)}`
 
   return (
     <li>
@@ -221,31 +278,31 @@ function InboxRow({ gap, meta }: { gap: GapItem; meta: Meta }) {
           {/* Middle — title + ↳ secondary */}
           <div className="min-w-0 flex-1">
             <div className="truncate text-[13.5px] font-semibold leading-6 text-neutral-800 group-hover:text-neutral-950">
-              {skuLabel(meta, gap.sku)}
+              {skuLabel(meta, row.sku)}
             </div>
             <div className="mt-0.5 flex items-center gap-1 text-[12px] text-neutral-500">
               <CornerDownRight className="h-3 w-3 shrink-0 text-neutral-400" />
               <span className="truncate">
-                {channelLabel(meta, gap.sub_channel)} · forecast for {formatPeriod(gap.period)}
+                {channelLabel(meta, row.sub_channel)} · {monthsPhrase}
               </span>
             </div>
           </div>
 
-          {/* Right — sparkline + gap pill + chevron */}
+          {/* Right — sparkline + cumulative-£ pill + chevron */}
           <div className="flex items-center gap-3 shrink-0">
             <div className="hidden md:block">
-              <Sparkline data={gap.history_hl ?? []} width={88} positive={gap.gap_hl > 0} />
+              <Sparkline data={row.history_hl ?? []} width={88} positive={row.totalGapHl > 0} />
             </div>
             <div
               className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-medium tabular-nums ${TONE_PILL[tone]}`}
             >
-              <span>{formatPercent(gap.gap_pct, 0)}</span>
-              {gap.gap_gbp != null && (
-                <>
-                  <span className="opacity-50">·</span>
-                  <span>≈ {formatGBP(gap.gap_gbp)}</span>
-                </>
+              {row.totalGapGbp != null ? (
+                <span>≈ {formatGBP(row.totalGapGbp)}</span>
+              ) : (
+                <span>{formatHl(row.totalGapHl)}</span>
               )}
+              <span className="opacity-50">·</span>
+              <span>{row.monthsAtRisk}mo</span>
             </div>
             <ArrowRight className="h-4 w-4 text-neutral-400 transition-colors group-hover:text-neutral-700" />
           </div>

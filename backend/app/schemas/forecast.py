@@ -27,14 +27,21 @@ class PromoWindow(BaseModel):
     type: Literal["price", "multibuy", "display"]
 
 
+EventImportance = Literal["high", "medium", "low"]
+
+
 class CalendarEvent(BaseModel):
     """A calendar event (bank holiday, sport final, etc.) relevant for beer demand.
 
     Rendered as a dashed vertical line with a label on the forecast chart.
+    The `importance` level drives the simulator's event-boost multiplier:
+    a promo overlapping a HIGH event (World Cup final, Christmas) lifts
+    more than the same promo in a quiet month.
     """
     period: str         # ISO yyyy-mm-dd (month-start the event falls in)
     label: str          # "Euros final", "Easter", "Christmas Day"
     kind: Literal["holiday", "sport", "weather"]
+    importance: EventImportance = "medium"
 
 
 class ForecastSeries(BaseModel):

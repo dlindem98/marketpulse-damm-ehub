@@ -784,6 +784,188 @@ def attach_external(monthly: pl.DataFrame) -> pl.DataFrame:
     return out
 
 
+def attach_planned_promos(monthly: pl.DataFrame, promos: pl.DataFrame) -> pl.DataFrame:
+    """Per-month planned-promo intensity per (brand × sub_channel).
+
+    Adds two columns to `monthly`:
+      n_planned_promos     — # of (sku × week) promo cells with on_promo=true
+                              that landed in the month, aggregated to brand.
+      avg_planned_discount — mean discount fraction over cells with both
+                              price_gbp and baseline_price_gbp set; rows
+                              where the discount can't be derived (multi-buy
+                              without unit price, clearance without £)
+                              still count toward n_planned_promos but
+                              don't move the average.
+
+    Brand matching: the trade-plan workbook stores SKUs as retailer labels
+    ("Estrella 10x330ml Can") with no link to material_id. We match each
+    promo SKU to the brand whose first-word (lowercased) appears in the
+    SKU label; ties broken by highest historical GROCERY Hl so multi-brand
+    families resolve to the dominant brand (e.g. "Damm Lemon ..." → DAMM
+    LEMON rather than the rarer DAMM TOSTADA).
+
+    Sub-channel: promos.parquet only covers grocers (channels Grocer A-E),
+    all of which map to sub_channel='GROCERY'. Non-GROCERY rows in
+    `monthly` are left at 0 / 0.0.
+    """
+    agg = aggregate_planned_promos(monthly, promos)
+    if agg.height == 0:
+        return monthly.with_columns(
+            n_planned_promos=pl.lit(0, dtype=pl.Int32),
+            avg_planned_discount=pl.lit(0.0, dtype=pl.Float64),
+        )
+
+    n_rows_with_promo = int((agg["n_planned_promos"] > 0).sum())
+    n_brands = agg["brand"].n_unique()
+    print(
+        f"  · planned promos: {n_rows_with_promo} brand-month buckets covered "
+        f"({n_brands} brands matched)"
+    )
+
+    out = monthly.join(
+        agg, on=["brand", "sub_channel", "date"], how="left"
+    ).with_columns(
+        pl.col("n_planned_promos").fill_null(0).cast(pl.Int32),
+        pl.col("avg_planned_discount").fill_null(0.0),
+    )
+    return out
+
+
+def aggregate_planned_promos(monthly: pl.DataFrame, promos: pl.DataFrame) -> pl.DataFrame:
+    """Promo intensity per (brand × sub_channel='GROCERY' × month-start date).
+
+    Shared by ETL (which left-joins onto historical `monthly`) and forecast
+    inference (which needs the SAME aggregation projected onto FUTURE months
+    the trade plan covers — those months don't exist in wide_monthly). The
+    `monthly` arg is only used to compute brand prevalence for tie-breaking.
+    """
+    if promos.height == 0:
+        return pl.DataFrame(schema={
+            "brand": pl.String, "sub_channel": pl.String, "date": pl.Date,
+            "n_planned_promos": pl.Int32, "avg_planned_discount": pl.Float64,
+        })
+
+    # Brand prevalence in GROCERY — drives tie-breaks when multiple brands
+    # share the same first word ("DAMM ..." family).
+    prevalence_df = (
+        monthly.filter(pl.col("sub_channel") == "GROCERY")
+        .group_by("brand")
+        .agg(pl.col("Hl").sum().alias("hl_total"))
+        .sort("hl_total", descending=True)
+    )
+    prevalence = {r["brand"]: float(r["hl_total"]) for r in prevalence_df.iter_rows(named=True) if r["brand"]}
+    real_brands = [b for b in prevalence.keys() if b and b.strip() and b != "#"]
+
+    by_first_word: dict[str, list[tuple[str, str]]] = {}
+    for b in real_brands:
+        fw = b.lower().split()[0]
+        by_first_word.setdefault(fw, []).append((b.lower(), b))
+    for fw, lst in by_first_word.items():
+        lst.sort(key=lambda x: (-len(x[0]), -prevalence.get(x[1], 0.0)))
+
+    def _match_brand(sku_label: str | None) -> str | None:
+        if not sku_label:
+            return None
+        s = sku_label.lower()
+        tokens = s.split()
+        if not tokens:
+            return None
+        candidates = by_first_word.get(tokens[0])
+        if not candidates:
+            return None
+        for full_lower, brand_canonical in candidates:
+            if full_lower in s:
+                return brand_canonical
+        return candidates[0][1]
+
+    df = promos.with_columns(
+        pl.col("sku").map_elements(_match_brand, return_dtype=pl.String).alias("_brand"),
+        pl.col("iso_week").dt.truncate("1mo").alias("_month"),
+    ).filter(pl.col("_brand").is_not_null())
+
+    df = df.with_columns(
+        pl.when(
+            pl.col("on_promo")
+            & pl.col("price_gbp").is_not_null()
+            & pl.col("baseline_price_gbp").is_not_null()
+            & (pl.col("baseline_price_gbp") > 0)
+            & (pl.col("price_gbp") < pl.col("baseline_price_gbp"))
+        )
+        .then(
+            (pl.col("baseline_price_gbp") - pl.col("price_gbp"))
+            / pl.col("baseline_price_gbp")
+        )
+        .otherwise(None)
+        .alias("_discount_pct"),
+    )
+
+    return (
+        df.group_by(["_brand", "_month"])
+        .agg(
+            n_planned_promos=pl.col("on_promo").cast(pl.Int32).sum(),
+            avg_planned_discount=pl.col("_discount_pct").mean(),
+        )
+        .rename({"_brand": "brand", "_month": "date"})
+        .with_columns(
+            pl.col("avg_planned_discount").fill_null(0.0),
+            sub_channel=pl.lit("GROCERY"),
+        )
+        .select(["brand", "sub_channel", "date", "n_planned_promos", "avg_planned_discount"])
+    )
+
+
+def attach_event_importance(monthly: pl.DataFrame) -> pl.DataFrame:
+    """Add per-month event-importance signal.
+
+    `uk_holidays_count` only captures *number* of bank holidays — it can't
+    tell the model that a month contains a World Cup final vs an ordinary
+    August. This feature surfaces the strongest curated event landing in a
+    given month as a numeric score (0 = none, 1 = LOW, 2 = MEDIUM, 3 = HIGH)
+    plus three one-hot columns so LightGBM can pick up any non-linear
+    interactions (e.g. "World Cup × hot weather"):
+
+        event_importance_score : 0..3
+        event_high  : 0/1
+        event_med   : 0/1
+        event_low   : 0/1
+
+    Historical data shows HIGH-event months sell ~33% more on average than
+    quiet months for Estrella × GROCERY, so this is a real signal the
+    forecast was previously leaving on the table.
+    """
+    from app.services.calendar import build_events
+
+    dmin, dmax = monthly["date"].min(), monthly["date"].max()
+    events = build_events(dmin, dmax)
+
+    # Strongest event per month → numeric score + one-hot. Multiple events in
+    # the same month collapse to the highest importance (no stacking).
+    rank = {"high": 3, "medium": 2, "low": 1}
+    best_per_month: dict[date, int] = {}
+    for e in events:
+        # period is "YYYY-MM-DD" string for the month-start.
+        from datetime import datetime as _dt
+        m = _dt.fromisoformat(e.period).date()
+        score = rank.get(e.importance, 0)
+        if score > best_per_month.get(m, 0):
+            best_per_month[m] = score
+
+    out = monthly.with_columns(
+        pl.col("date").replace_strict(
+            best_per_month, default=0,
+            return_dtype=pl.Int32,
+        ).alias("event_importance_score")
+    ).with_columns(
+        (pl.col("event_importance_score") == 3).cast(pl.Int8).alias("event_high"),
+        (pl.col("event_importance_score") == 2).cast(pl.Int8).alias("event_med"),
+        (pl.col("event_importance_score") == 1).cast(pl.Int8).alias("event_low"),
+    )
+    n_high = int(out.filter(pl.col("event_high") == 1).height)
+    n_med = int(out.filter(pl.col("event_med") == 1).height)
+    print(f"  · attached event importance: {n_high} HIGH-event month-rows · {n_med} MEDIUM")
+    return out
+
+
 # ────────────────────────────────────────────────────────────────────────────
 # Validation
 # ────────────────────────────────────────────────────────────────────────────
@@ -917,10 +1099,16 @@ def main() -> int:
     print("\n[6/8] Joining sales × customers × materials (UK only)")
     joined = join_uk(actuals_netted, customers_uk, materials)
 
-    print("\n[7/8] Aggregating to monthly grain + holidays + external + targets")
+    print("\n[7/9] Parsing promos (needed before monthly enrichment)")
+    promos = parse_promos_all()
+    validate_promos(promos)
+
+    print("\n[8/9] Aggregating to monthly grain + holidays + external + planned promos + events")
     monthly = aggregate_monthly(joined)
     monthly = attach_uk_holidays(monthly)
     monthly = attach_external(monthly)
+    monthly = attach_planned_promos(monthly, promos)
+    monthly = attach_event_importance(monthly)
     validate_monthly(monthly)
     targets = derive_targets(monthly)
     validate_targets(targets, monthly)
@@ -930,9 +1118,7 @@ def main() -> int:
     targets = pl.concat([targets, future_targets], how="vertical")
     print(f"  · future targets: +{len(future_targets):,} rows; total targets: {len(targets):,}")
 
-    print("\n[8/8] Parsing promos (per-retailer parsers + content-based classifier)")
-    promos = parse_promos_all()
-    validate_promos(promos)
+    print("\n[9/9] Writing snapshots")
     write_snapshots(monthly, targets, promos)
     write_meta(monthly)
 

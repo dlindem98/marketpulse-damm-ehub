@@ -16,7 +16,7 @@ import { PageWidthWrapper } from "@/components/shell/PageWidthWrapper"
 import { Skeleton } from "@/components/ui/skeleton"
 import { serverFetch } from "@/lib/api"
 import { skuLabel, channelLabel } from "@/lib/meta"
-import { formatGBP, formatPercent, formatPeriod, gapColor } from "@/lib/format"
+import { formatGBP, formatPeriod, gapColor } from "@/lib/format"
 import type { components } from "@/lib/api.gen"
 import { DiagnosisPanel } from "./diagnosis-panel"
 import { OptionsPanel } from "./options-panel"
@@ -58,7 +58,21 @@ export default async function DecisionPage({
   const subhead =
     `${channelLabel(meta, sub_channel)} · ${targetPeriod ? formatPeriod(targetPeriod) : "—"}`
 
-  // Compose the header title: SKU name + channel/period + headline gap
+  // Aggregate the at-risk picture for this SKU × sub_channel across the
+  // full horizon (mirrors the inbox row format: "N months at risk · £-Yk").
+  // The currently-viewed period stays in the subhead — the chart focuses
+  // on that month — but the header chip describes the broader exposure
+  // rather than just one month's gap.
+  const monthsAtRisk = matchingGaps.length
+  const worstGap = matchingGaps.length > 0
+    ? matchingGaps.reduce((a, b) => (a.gap_pct < b.gap_pct ? a : b))
+    : null
+  const totalGapGbp = matchingGaps.reduce<number | null>((s, g) => {
+    if (g.gap_gbp == null) return s
+    return (s ?? 0) + g.gap_gbp
+  }, null)
+
+  // Compose the header title: SKU name + channel/period + aggregate gap
   // (replaces the dedicated KPI strip that used to sit below the chart).
   const headerTitle = (
     <span className="flex items-baseline gap-2 min-w-0">
@@ -66,15 +80,15 @@ export default async function DecisionPage({
       <span className="hidden sm:inline text-[13px] font-normal text-neutral-500 truncate">
         {subhead}
       </span>
-      {currentGap && (
+      {monthsAtRisk > 0 && worstGap && (
         <span
           className="hidden md:inline text-[13px] font-semibold tabular-nums shrink-0"
-          style={{ color: gapColor(currentGap.gap_pct) }}
+          style={{ color: gapColor(worstGap.gap_pct) }}
         >
-          · {formatPercent(currentGap.gap_pct, 1)}
-          {currentGap.gap_gbp != null && (
+          · {monthsAtRisk} {monthsAtRisk === 1 ? "month" : "months"} at risk
+          {totalGapGbp != null && (
             <span className="ml-1 font-normal text-neutral-500">
-              ≈ {formatGBP(currentGap.gap_gbp)}
+              ≈ {formatGBP(totalGapGbp)} cum.
             </span>
           )}
         </span>
@@ -84,7 +98,7 @@ export default async function DecisionPage({
 
   return (
     <PageContent title={headerTitle} titleBackHref="/">
-      <PageWidthWrapper className="pb-12">
+      <PageWidthWrapper className="pb-4">
         {activeTab === "diagnosis" ? (
           <Suspense fallback={<PanelSkeleton />}>
             <DiagnosisPanel

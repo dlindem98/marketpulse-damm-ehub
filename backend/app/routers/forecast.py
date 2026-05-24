@@ -165,7 +165,7 @@ def _predict_walk_forward(actuals: np.ndarray) -> np.ndarray:
                                           + 0.4 * (trailing-3-month mean)
 
     The 12-month seasonal anchor + 3-month trend mirrors the lag/rolling-mean
-    features the production LightGBM ensemble actually relies on (ML.md §3),
+    features the production LightGBM ensemble actually relies on (MODEL.md),
     so the resulting MAPE is a defensible proxy for production accuracy.
 
     NOTE: HACKATHON-SCOPE proxy. Actuals are real; predictions are a baseline,
