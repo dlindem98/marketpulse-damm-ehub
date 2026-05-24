@@ -23,7 +23,7 @@ import joblib
 import numpy as np
 import polars as pl
 
-from app.services.calendar import build_events, oneoff_event_boost_for_month
+from app.services.calendar import build_events, post_forecast_boost_for_month
 from app.services.forecast.features import build_features
 from app.services.seasonality import (
     apply_seasonality,
@@ -358,21 +358,25 @@ def main() -> int:
           f"(materials={forecast['material_id'].n_unique()}, "
           f"channels={forecast['sub_channel'].n_unique()})")
 
-    # ── One-off mega-event boost ────────────────────────────────────────
-    # Apply a deterministic post-forecast multiplier for months containing
-    # World Cup / Euros — these are once-every-2-4-years events that the
-    # LightGBM model can't legitimately learn from a 3-year training window.
-    # Recurring events (Christmas, Wimbledon, bank holidays) are already
-    # captured by the model's seasonality features, so they're NOT boosted
-    # here (would double-count).
+    # ── Post-forecast event boost ───────────────────────────────────────
+    # Apply a deterministic multiplier for months containing events that
+    # the seasonality multiplier CAN'T capture: non-annual events (World
+    # Cup, Euros — every 2-4 years) and date-shifting ones (Easter Monday
+    # — Mar/Apr varies; Wimbledon — sport-pub demand on top of the summer
+    # baseline). Fixed-date bank holidays (Christmas, May BH, Summer BH)
+    # are deliberately NOT boosted here — seasonality already lifts those
+    # months from real actuals, and double-counting would overshoot.
+    # See services/calendar.py POST_FORECAST_BOOST for per-event values.
     fc_dates = forecast["date"].unique().to_list()
     _events = build_events(min(fc_dates), max(fc_dates))
-    boost_by_date = {d: oneoff_event_boost_for_month(d.isoformat(), _events) for d in fc_dates}
+    boost_by_date = {d: post_forecast_boost_for_month(d.isoformat(), _events) for d in fc_dates}
     n_boosted = sum(1 for b in boost_by_date.values() if b > 1.0)
     if n_boosted > 0:
-        boosted_months = [d.isoformat() for d, b in boost_by_date.items() if b > 1.0]
-        print(f"      one-off boost: +{(max(boost_by_date.values())-1)*100:.0f}% applied to "
-              f"{n_boosted} month-buckets ({sorted(boosted_months)})")
+        boosted = sorted(
+            [(d.isoformat(), b) for d, b in boost_by_date.items() if b > 1.0]
+        )
+        details = ", ".join(f"{d}: +{(b-1)*100:.0f}%" for d, b in boosted)
+        print(f"      event boost applied to {n_boosted} months ({details})")
         forecast = forecast.with_columns(
             pl.col("date").replace_strict(boost_by_date, return_dtype=pl.Float64).alias("_boost"),
         ).with_columns(
@@ -381,7 +385,7 @@ def main() -> int:
             (pl.col("Hl_hat_p90") * pl.col("_boost")).alias("Hl_hat_p90"),
         ).drop("_boost")
     else:
-        print("      one-off boost: no World Cup / Euros months in horizon — skipped")
+        print("      event boost: no qualifying events in horizon — skipped")
 
     # ── Seasonality multiplier ──────────────────────────────────────────
     # The iterative LGB feeds its own p50 forward as the lag for the next

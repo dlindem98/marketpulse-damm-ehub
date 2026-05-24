@@ -32,9 +32,16 @@ EventImportance = Literal["high", "medium", "low"]
 # moments that move beer volume. Names match `holidays` package output.
 # Per-holiday importance: Christmas/Boxing/Spring BH carry the most beer
 # demand uplift; minor holidays are medium / low.
+# Importance is graded by *beer demand impact*, not religious or civic
+# significance. Two reclassifications vs the initial set:
+#   - New Year's Day → low. Most consumption happened NYE the night before;
+#     Jan 1 is the hungover recovery day. (NYE itself isn't a UK bank
+#     holiday so doesn't appear here.)
+#   - Good Friday → low. Religious holiday; pubs traditionally closed and
+#     the food side leans fish-focused. Weak beer driver.
 _HOLIDAY_META: dict[str, tuple[str, EventImportance]] = {
-    "New Year's Day":      ("New Year",   "medium"),
-    "Good Friday":         ("Good Friday", "medium"),
+    "New Year's Day":      ("New Year",   "low"),
+    "Good Friday":         ("Good Friday", "low"),
     "Easter Monday":       ("Easter Mon", "medium"),
     "May Day":             ("May BH",     "high"),
     "Spring Bank Holiday": ("Spring BH",  "high"),
@@ -140,49 +147,68 @@ def event_boost_for_month(month_iso: str, events: list[CalendarEvent]) -> float:
     return EVENT_BOOST_MULTIPLIER.get(best.importance, 1.0)
 
 
-# Substrings identifying one-off mega-events the LightGBM model can't learn
-# from history (they only happen every 2-4 years, so the training data has
-# 0-1 examples). Used by the ensemble step to apply a small post-forecast
-# boost ONLY for these — Christmas / Wimbledon / bank holidays are already
-# baked into the model via seasonality features.
-_ONEOFF_EVENT_KEYWORDS: tuple[str, ...] = (
-    "World Cup",
-    "Euros",
-)
-
-# Per-event multiplier for the post-forecast one-off boost.
+# Per-event-label post-forecast boost. KEY PRINCIPLE: only boost events
+# the per-(brand × sub_channel × month) seasonality multiplier in
+# services/seasonality.py *can't* capture — otherwise we double-count.
 #
-# Calibrated from our own `wide_monthly.parquet`:
-#   - 2023 Jun+Jul / Apr+May ratio (no major sport, baseline): 1.279
-#   - 2024 Jun+Jul / Apr+May ratio (Euros 2024):               1.011
-#   - 2025 Jun+Jul / Apr+May ratio (Wimbledon-only):           0.982
-# Euros-vs-Wimbledon detrended lift: 1.011 / 0.982 ≈ +3% at the
-# all-brand UK retail category level.
+# Seasonality already lifts December by ~1.14-1.44× and May by ~1.4× for
+# the major brands (recovered from real historical actuals), so layering
+# a Christmas / May BH / Summer BH boost on top would push those months
+# above reality. The post-forecast boost is therefore limited to events
+# that are either:
+#   · non-annual (every 2-4 years) — the model has 0-1 training examples
+#   · date-shifting across months year-to-year — seasonality can't peg
+#     them to a stable month
+# Everything else stays at 0% (seasonality multiplier handles it; or low
+# beer impact in the first place).
 #
-# Cross-check vs industry literature:
-#   - WSTA / The Grocer often cite 5-15% beer lift during major tournament
-#     match days, dropping to ~3-7% at the monthly aggregate
-#     (most of the lift concentrates on match-day weekends rather than
-#     spread across the whole month).
+# Calibration:
+#   - World Cup / Euros: +5%. From our own wide_monthly Euros 2024 vs
+#     Wimbledon-only detrended ratio (~+3%) plus WSTA / Grocer literature
+#     (+3-7% at monthly aggregate, 5-15% on match-day weekends).
+#     Picked +5% as a conservative midpoint.
+#   - Wimbledon: +2%. Sustained 2-week sport-pub event on top of the
+#     summer baseline. Smaller than tournament finals because the
+#     audience is narrower (Pimm's-and-strawberries crowd vs football).
+#   - Easter Monday: +3%. The one bank holiday that shifts months
+#     (late Mar to mid-Apr) so seasonality smooths it across both,
+#     under-counting whichever month Easter actually lands in.
 #
-# Picked +5% as a calibrated midpoint: above our measured Euros baseline
-# but conservative against the wider literature band. Applied
-# unconditionally to the BASELINE forecast for one-off-event months, so
-# we lean conservative to avoid overshoot.
-ONEOFF_BOOST: float = 0.05  # +5% — measured from Euros 2024 detrended ratio + industry literature
+# Matched on substring of event.label so multiple events sharing the same
+# pattern (e.g. "World Cup opens" and "World Cup final") get the same
+# boost without listing every variant.
+POST_FORECAST_BOOST: dict[str, float] = {
+    "World Cup":   0.05,
+    "Euros":       0.05,
+    "Wimbledon":   0.02,
+    "Easter Mon":  0.03,
+}
 
 
-def oneoff_event_boost_for_month(month_iso: str, events: list[CalendarEvent]) -> float:
-    """Return a multiplicative baseline boost for months containing a one-off
-    mega-event (World Cup, Euros). 1.0 = no boost.
+def post_forecast_boost_for_month(month_iso: str, events: list[CalendarEvent]) -> float:
+    """Multiplicative baseline boost for a month, based on any events that
+    aren't already captured by the per-month seasonality multiplier.
+    Returns 1.0 when no qualifying event lands in the month.
 
     Distinct from `event_boost_for_month` which boosts *promo lift* during
-    any high-importance month. This one boosts the *baseline forecast itself*
-    for events the model can't predict from history alone.
+    high-importance months. This one boosts the *baseline forecast itself*
+    in the ensemble step — see services/forecast/ensemble.py.
+
+    When multiple qualifying events land in the same month (e.g.
+    Wimbledon + Euros final both in July) we apply the *largest* boost,
+    not the sum, to stay conservative.
     """
+    best_boost = 0.0
     for e in events:
         if e.period != month_iso:
             continue
-        if any(k in e.label for k in _ONEOFF_EVENT_KEYWORDS):
-            return 1.0 + ONEOFF_BOOST
-    return 1.0
+        for keyword, boost in POST_FORECAST_BOOST.items():
+            if keyword in e.label and boost > best_boost:
+                best_boost = boost
+    return 1.0 + best_boost
+
+
+# Backwards-compat alias — keep `oneoff_event_boost_for_month` working
+# until callers are updated. Same semantics now: returns the best
+# qualifying boost for the month.
+oneoff_event_boost_for_month = post_forecast_boost_for_month
