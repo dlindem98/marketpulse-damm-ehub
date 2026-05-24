@@ -50,8 +50,13 @@ export default async function BriefPage({
   if (!customer) notFound()
 
   // 1. Pull gaps + meta (parallel).
+  // /api/gap defaults to limit=50 sorted by gap_hl ASC (worst losses first),
+  // which means the brief never sees the wins side of the customer's
+  // basket — every wins_count would render 0. Ask for the full slate
+  // (limit=200, the max; min_quality=0 to include even low-confidence
+  // wins) so the "X ahead · Y behind · net" framing is honest.
   const [gaps, meta] = await Promise.all([
-    serverFetch<GapItem[]>("/api/gap"),
+    serverFetch<GapItem[]>("/api/gap?limit=2000&min_quality=0"),
     serverFetch<Meta>("/api/meta"),
   ])
 

@@ -99,7 +99,7 @@ def get_gap(
     period_from: str | None = Query(default=None, alias="from"),
     period_to: str | None = Query(default=None, alias="to"),
     sort: str = Query(default="gap_hl_asc"),  # biggest absolute Hl bleed first
-    limit: int = Query(default=50, ge=1, le=200),
+    limit: int = Query(default=50, ge=1, le=2000),
     min_quality: float = Query(default=0.25, ge=0.0, le=1.0),
 ) -> list[GapItem]:
     df = _gap_table()
