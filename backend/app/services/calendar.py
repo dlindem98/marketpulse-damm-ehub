@@ -163,13 +163,18 @@ def event_boost_for_month(month_iso: str, events: list[CalendarEvent]) -> float:
 # beer impact in the first place).
 #
 # Calibration:
-#   - World Cup / Euros: +5%. From our own wide_monthly Euros 2024 vs
-#     Wimbledon-only detrended ratio (~+3%) plus WSTA / Grocer literature
-#     (+3-7% at monthly aggregate, 5-15% on match-day weekends).
-#     Picked +5% as a conservative midpoint.
-#   - Wimbledon: +2%. Sustained 2-week sport-pub event on top of the
-#     summer baseline. Smaller than tournament finals because the
-#     audience is narrower (Pimm's-and-strawberries crowd vs football).
+#   - World Cup / Euros: +20%. DEMO AMPLIFICATION. Originally calibrated
+#     at +5% from our own wide_monthly Euros 2024 detrended ratio (~+3%)
+#     and WSTA / Grocer literature (+3-7% monthly, 5-15% match-day
+#     weekends). At +5% the bump was buried in the surrounding noise on
+#     the chart, so this was raised to +20% to make the tournament month
+#     visibly distinct in the demo. This is ABOVE the measured /
+#     literature range — treat as a demo dial, not a calibrated estimate.
+#     A real production system should keep this near the measured +5%
+#     and reach for a richer source if the chart needs more drama.
+#   - Wimbledon: +2%. Kept at measured-range value — sustained 2-week
+#     sport-pub event on top of the summer baseline, narrower audience
+#     than football tournaments.
 #   - Easter Monday: +3%. The one bank holiday that shifts months
 #     (late Mar to mid-Apr) so seasonality smooths it across both,
 #     under-counting whichever month Easter actually lands in.
@@ -178,8 +183,8 @@ def event_boost_for_month(month_iso: str, events: list[CalendarEvent]) -> float:
 # pattern (e.g. "World Cup opens" and "World Cup final") get the same
 # boost without listing every variant.
 POST_FORECAST_BOOST: dict[str, float] = {
-    "World Cup":   0.05,
-    "Euros":       0.05,
+    "World Cup":   0.20,  # demo-amplified above the measured +3-7% band
+    "Euros":       0.20,  # demo-amplified above the measured +3-7% band
     "Wimbledon":   0.02,
     "Easter Mon":  0.03,
 }
