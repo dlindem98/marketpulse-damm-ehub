@@ -1,23 +1,23 @@
 "use client"
 
 /**
- * Forecast vs target — area band (p10/p90) + median line + dashed target.
+ * Forecast vs target — median line + dashed target.
  *
  * Why this design: a Commercial Manager looks at this for 5 seconds and needs
- * to answer "am I above or below target, and by how much". Median line + target
- * line + colored gap band does that without text.
+ * to answer "am I above or below target, and by how much". The Y axis is
+ * sized to the forecast + target only (NOT the p10/p90 band) so those two
+ * lines fill the plot area instead of being squashed by the model's
+ * confidence range. Uncertainty is communicated by the BULLISH / Volatile
+ * chip in the card header rather than an in-chart band.
  *
- * Annotations layer (added in Plan B):
- *  - Promo windows render as soft green vertical bands ("3 for £10" etc.)
- *    behind the lines so the user sees *why* a past month over/underperformed.
- *  - Calendar events (bank holidays, Wimbledon, Euros) render as dashed
- *    vertical reference lines with a small top label.
- *  - Hover crosshair pins forecast + target values for the hovered period
- *    and surfaces any in-band promo label in the tooltip card.
+ * Annotations layer:
+ *  - Promo windows render as soft green vertical bands behind the lines.
+ *  - Calendar events render as dashed vertical reference lines.
+ *  - Hover crosshair pins forecast + target values for the hovered period.
  */
 
 import {
-  Area, ComposedChart, Line, ReferenceArea, ReferenceLine, ResponsiveContainer,
+  ComposedChart, Line, ReferenceArea, ReferenceLine, ResponsiveContainer,
   Tooltip, XAxis, YAxis, CartesianGrid,
 } from "recharts"
 import type { TooltipProps } from "recharts"
@@ -33,9 +33,6 @@ type ChartDatum = {
   period: string                       // X-axis label, e.g. "May '26"
   periodIso: string                    // ISO yyyy-mm-dd (used for tooltip lookup)
   point: number
-  lo80: number
-  hi80: number
-  band: [number, number]
   target: number | undefined
 }
 
@@ -62,9 +59,6 @@ export function ForecastChart({
     period: formatPeriodShort(p.period),
     periodIso: p.period_start,
     point: p.point,
-    lo80: p.lo80,
-    hi80: p.hi80,
-    band: [p.lo80, p.hi80],
     target: targetByPeriod?.[p.period],
   }))
 
@@ -138,11 +132,14 @@ export function ForecastChart({
     }))
     .filter((row) => row.events.length > 0)
 
-  // Pad Y domain so the median line sits in the middle of the plot. The
-  // band (lo80/hi80) needs to fit too, and target can be above or below.
-  // Floor at 0 — forecast values never go negative.
+  // Y domain is sized to the FORECAST + TARGET only — the 80% confidence
+  // band used to be included, which made the chart zoom out 3-4× and
+  // squashed the median line into the bottom third. The band itself was
+  // dropped from the rendered chart (engineer-detail; the BULLISH /
+  // Volatile chip already communicates uncertainty at a glance) so this
+  // is the honest scale of the data the user cares about.
   const allValues = data.flatMap((d) => {
-    const out = [d.point, d.lo80, d.hi80]
+    const out = [d.point]
     if (d.target != null) out.push(d.target)
     return out
   })
@@ -235,17 +232,6 @@ export function ForecastChart({
             )
           })}
 
-          {/* Confidence band */}
-          <defs>
-            <linearGradient id="bandFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.18} />
-              <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.02} />
-            </linearGradient>
-          </defs>
-          <Area
-            type="monotone" dataKey="band" stroke="none"
-            fill="url(#bandFill)" name="80% band"
-          />
           {/* Forecast median */}
           <Line
             type="monotone" dataKey="point" stroke="var(--chart-1)"
@@ -294,9 +280,6 @@ function ForecastTooltip({
   const gapPct = target ? (forecast - target) / target : null
   const promo = promoByPeriod.get(String(label))
   const events = eventsByPeriod.get(String(label)) ?? []
-  // Band width as ±% of the point — helps the user trust or distrust the
-  // figure (tight = model is sure; wide = hedge).
-  const bandRel = forecast > 0 ? (datum.hi80 - datum.lo80) / (2 * forecast) : 0
   const signals = signalsByPeriod.get(String(label))
 
   // Build per-period external context lines. Only notable ones — skip
@@ -355,12 +338,6 @@ function ForecastTooltip({
             >
               {`${gapPct > 0 ? "+" : ""}${(gapPct * 100).toFixed(1)}%`}
             </span>
-          </div>
-        )}
-        {bandRel > 0 && (
-          <div className="flex items-center justify-between gap-6 tabular-nums">
-            <span className="text-neutral-500">Band</span>
-            <span className="text-neutral-500">±{(bandRel * 100).toFixed(0)}%</span>
           </div>
         )}
       </div>

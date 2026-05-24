@@ -201,13 +201,6 @@ export async function DiagnosisPanel({
             </span>
             <span
               className="inline-flex items-center gap-1.5"
-              title="The model expects the real number to land inside this grey range 80% of the time. Wide range = the model is less sure (Volatile). Narrow range = high confidence (Bullish)."
-            >
-              <span className="inline-block h-2 w-4 rounded-sm bg-[var(--chart-1)]/15" />
-              Likely range
-            </span>
-            <span
-              className="inline-flex items-center gap-1.5"
               title="The budget for this SKU × channel for each month, what we're aiming for."
             >
               <span
