@@ -1,16 +1,16 @@
 """GET /api/drivers — reads SHAP drivers from snapshots/drivers.parquet."""
 
 from functools import lru_cache
-from pathlib import Path
 
 import polars as pl
 from fastapi import APIRouter, HTTPException, Query
 
+from app.paths import snapshot_path
 from app.schemas import Driver
 
 router = APIRouter(prefix="/api", tags=["drivers"])
 
-DRIVERS = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "drivers.parquet"
+DRIVERS = snapshot_path("drivers.parquet")
 
 
 @lru_cache(maxsize=1)

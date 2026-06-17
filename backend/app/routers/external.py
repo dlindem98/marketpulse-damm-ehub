@@ -19,11 +19,11 @@ from __future__ import annotations
 from datetime import date as date_t
 from datetime import datetime, timedelta
 from functools import lru_cache
-from pathlib import Path
 
 import polars as pl
 from fastapi import APIRouter, HTTPException, Query
 
+from app.paths import snapshot_path
 from app.schemas import (
     ExternalSignals,
     ExternalSignalsTimeline,
@@ -36,7 +36,7 @@ from app.services.calendar import build_events
 
 router = APIRouter(prefix="/api", tags=["external"])
 
-WIDE = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "wide_monthly.parquet"
+WIDE = snapshot_path("wide_monthly.parquet")
 
 
 @lru_cache(maxsize=1)

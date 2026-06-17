@@ -14,11 +14,11 @@ brief's "will the month close above/below target?" framing.
 from datetime import date as date_t
 from datetime import datetime
 from functools import lru_cache
-from pathlib import Path
 
 import polars as pl
 from fastapi import APIRouter, HTTPException, Query
 
+from app.paths import snapshot_path
 from app.schemas import BrandRollup, Pulse, SubChannelRollup, WorstSlice
 from app.services.anonymize import sub_channel_label
 from app.services.pricing import (
@@ -29,9 +29,9 @@ from app.services.pricing import (
 
 router = APIRouter(prefix="/api", tags=["aggregates"])
 
-FORECAST = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "forecast.parquet"
-TARGETS  = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "targets.parquet"
-WIDE     = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "wide_monthly.parquet"
+FORECAST = snapshot_path("forecast.parquet")
+TARGETS = snapshot_path("targets.parquet")
+WIDE = snapshot_path("wide_monthly.parquet")
 
 
 @lru_cache(maxsize=1)

@@ -2,11 +2,11 @@
 
 from functools import lru_cache
 import json
-from pathlib import Path
 
 import polars as pl
 from fastapi import APIRouter, HTTPException, Query
 
+from app.paths import snapshot_path
 from app.schemas import (
     PromoAffectedProduct,
     PromoBudgetFlow,
@@ -17,11 +17,11 @@ from app.schemas import (
 
 router = APIRouter(prefix="/api", tags=["promos"])
 
-PROMO_ROI = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "promo_roi.parquet"
-PROMOS    = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "promos.parquet"
-FORECAST  = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "forecast.parquet"
-TARGETS   = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "targets.parquet"
-META      = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "meta.json"
+PROMO_ROI = snapshot_path("promo_roi.parquet")
+PROMOS = snapshot_path("promos.parquet")
+FORECAST = snapshot_path("forecast.parquet")
+TARGETS = snapshot_path("targets.parquet")
+META = snapshot_path("meta.json")
 
 LIFT_HISTORY_WINDOW = 12
 REAL_PROMO_TYPES = ["multi-buy", "price-cut", "rollback", "clearance", "listing"]

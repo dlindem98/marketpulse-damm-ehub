@@ -5,11 +5,10 @@ schema flow to the Next.js frontend via `make types` (see README).
 """
 
 from contextlib import asynccontextmanager
-from pathlib import Path
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.paths import SNAPSHOTS_DIR
 from app.routers import (
     aggregates,
     brief,
@@ -31,8 +30,7 @@ from app.routers import (
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # Cold-start: warm meta cache, verify snapshot dir exists, etc.
-    snapshots = Path(__file__).parent / "data" / "snapshots"
-    snapshots.mkdir(parents=True, exist_ok=True)
+    SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
     yield
 
 

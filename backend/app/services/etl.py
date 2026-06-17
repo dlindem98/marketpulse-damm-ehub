@@ -30,15 +30,13 @@ from typing import Final
 
 import polars as pl
 
+from app.paths import RAW_DIR as RAW, SNAPSHOTS_DIR as SNAPSHOTS
 from app.services.anonymize import anonymize, anonymize_promo_sheet
 
 # ────────────────────────────────────────────────────────────────────────────
 # Paths
 # ────────────────────────────────────────────────────────────────────────────
 
-ROOT       = Path(__file__).resolve().parents[2]
-RAW        = ROOT / "app" / "data" / "raw"
-SNAPSHOTS  = ROOT / "app" / "data" / "snapshots"
 SALES_XLSX = RAW / "UK DATA.xlsx"
 PROMO_XLSX = RAW / "Damm Trade Plan - promotions.xlsx"
 
