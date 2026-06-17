@@ -19,14 +19,14 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from functools import lru_cache
-from pathlib import Path
 
 import polars as pl
 
+from app.paths import snapshot_path
 from app.schemas import PromoWindow
 
-PROMOS_PATH = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "promos.parquet"
-WIDE_PATH   = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "wide_monthly.parquet"
+PROMOS_PATH = snapshot_path("promos.parquet")
+WIDE_PATH = snapshot_path("wide_monthly.parquet")
 
 
 # Map promo_type → frontend `type` literal

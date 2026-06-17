@@ -25,18 +25,16 @@ import hashlib
 import json
 import time
 from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
 import polars as pl
 import torch
 from chronos import BaseChronosPipeline
 
-ROOT = Path(__file__).resolve().parents[3]
-WIDE = ROOT / "app" / "data" / "snapshots" / "wide_monthly.parquet"
-PROMOS = ROOT / "app" / "data" / "snapshots" / "promos.parquet"
-SNAPSHOTS = ROOT / "app" / "data" / "snapshots"
-CACHE = ROOT / "app" / "data" / "cache"
+from app.paths import CACHE_DIR as CACHE, SNAPSHOTS_DIR as SNAPSHOTS, snapshot_path
+
+WIDE = snapshot_path("wide_monthly.parquet")
+PROMOS = snapshot_path("promos.parquet")
 CACHE.mkdir(parents=True, exist_ok=True)
 
 HORIZON = 9

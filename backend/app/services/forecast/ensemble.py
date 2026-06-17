@@ -17,12 +17,12 @@ truth that every endpoint reads.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import joblib
 import numpy as np
 import polars as pl
 
+from app.paths import MODELS_DIR as MODELS, SNAPSHOTS_DIR as SNAPSHOTS, snapshot_path
 from app.services.calendar import build_events, post_forecast_boost_for_month
 from app.services.forecast.features import build_features
 from app.services.seasonality import (
@@ -30,13 +30,10 @@ from app.services.seasonality import (
     compute_seasonality_multipliers,
 )
 
-ROOT = Path(__file__).resolve().parents[3]
-WIDE = ROOT / "app" / "data" / "snapshots" / "wide_monthly.parquet"
-ZEROSHOT = ROOT / "app" / "data" / "snapshots" / "forecasts_zeroshot.parquet"
-AUTOARIMA = ROOT / "app" / "data" / "snapshots" / "forecasts_autoarima.parquet"
-CMBC = ROOT / "app" / "data" / "snapshots" / "forecasts_cmbc.parquet"
-SNAPSHOTS = ROOT / "app" / "data" / "snapshots"
-MODELS = ROOT / "models"
+WIDE = snapshot_path("wide_monthly.parquet")
+ZEROSHOT = snapshot_path("forecasts_zeroshot.parquet")
+AUTOARIMA = snapshot_path("forecasts_autoarima.parquet")
+CMBC = snapshot_path("forecasts_cmbc.parquet")
 
 HORIZON_MONTHS = 9
 CMBC_CHANNEL = "FREE TRADE CMBC"

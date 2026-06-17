@@ -10,8 +10,12 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 APP_ROOT = Path(__file__).resolve().parent
 BACKEND_ROOT = APP_ROOT.parent
+
+load_dotenv(BACKEND_ROOT / ".env")
 
 
 def _dir_from_env(name: str, default: Path) -> Path:
@@ -22,6 +26,7 @@ def _dir_from_env(name: str, default: Path) -> Path:
 RAW_DIR = _dir_from_env("MARKETPULSE_RAW_DIR", APP_ROOT / "data" / "raw")
 SNAPSHOTS_DIR = _dir_from_env("MARKETPULSE_SNAPSHOT_DIR", APP_ROOT / "data" / "snapshots")
 CACHE_DIR = _dir_from_env("MARKETPULSE_CACHE_DIR", APP_ROOT / "data" / "cache")
+MODELS_DIR = _dir_from_env("MARKETPULSE_MODELS_DIR", BACKEND_ROOT / "models")
 
 
 def raw_path(filename: str) -> Path:

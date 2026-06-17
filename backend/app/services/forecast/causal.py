@@ -20,15 +20,13 @@ Writes: snapshots/promo_roi.parquet
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import polars as pl
 
-ROOT = Path(__file__).resolve().parents[3]
-WIDE = ROOT / "app" / "data" / "snapshots" / "wide_monthly.parquet"
-PROMOS = ROOT / "app" / "data" / "snapshots" / "promos.parquet"
-SNAPSHOTS = ROOT / "app" / "data" / "snapshots"
+from app.paths import SNAPSHOTS_DIR as SNAPSHOTS, snapshot_path
+
+WIDE = snapshot_path("wide_monthly.parquet")
+PROMOS = snapshot_path("promos.parquet")
 
 ESTIMATED_COST_PER_PROMO: dict[str, float] = {
     "multi-buy":   12_400.0,

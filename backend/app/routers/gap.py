@@ -16,19 +16,19 @@ Query params:
 """
 
 from functools import lru_cache
-from pathlib import Path
 
 import polars as pl
 from fastapi import APIRouter, HTTPException, Query
 
+from app.paths import snapshot_path
 from app.schemas import GapItem
 from app.services.pricing import price_by_keys
 
 router = APIRouter(prefix="/api", tags=["gap"])
 
-FORECAST = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "forecast.parquet"
-TARGETS  = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "targets.parquet"
-ACTUALS  = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "wide_monthly.parquet"
+FORECAST = snapshot_path("forecast.parquet")
+TARGETS = snapshot_path("targets.parquet")
+ACTUALS = snapshot_path("wide_monthly.parquet")
 
 # History window for the inbox sparkline. Data is monthly, so this is
 # 12 months even though we call the field `history_hl` (week was the

@@ -13,22 +13,19 @@ Writes: snapshots/calibration.parquet  (one row per sub_channel + 'overall')
 from __future__ import annotations
 
 import warnings
-from pathlib import Path
 
 import joblib
 import numpy as np
 import polars as pl
 
+from app.paths import MODELS_DIR as MODELS, SNAPSHOTS_DIR as SNAPSHOTS, snapshot_path
 from app.services.forecast.conformal import calibrate, per_group_qhats
 from app.services.forecast.features import build_features, time_split
 
 warnings.filterwarnings("ignore", message="X does not have valid feature names")
 
-ROOT = Path(__file__).resolve().parents[3]
-WIDE = ROOT / "app" / "data" / "snapshots" / "wide_monthly.parquet"
-FORECAST = ROOT / "app" / "data" / "snapshots" / "forecast.parquet"
-SNAPSHOTS = ROOT / "app" / "data" / "snapshots"
-MODELS = ROOT / "models"
+WIDE = snapshot_path("wide_monthly.parquet")
+FORECAST = snapshot_path("forecast.parquet")
 
 
 def main() -> int:

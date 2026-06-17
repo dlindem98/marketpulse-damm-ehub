@@ -11,16 +11,15 @@ Writes: snapshots/anomalies.parquet
 from __future__ import annotations
 
 from datetime import date
-from pathlib import Path
 
 import numpy as np
 import polars as pl
 from scipy.stats import median_abs_deviation
 from statsmodels.tsa.seasonal import STL
 
-ROOT = Path(__file__).resolve().parents[3]
-WIDE = ROOT / "app" / "data" / "snapshots" / "wide_monthly.parquet"
-SNAPSHOTS = ROOT / "app" / "data" / "snapshots"
+from app.paths import SNAPSHOTS_DIR as SNAPSHOTS, snapshot_path
+
+WIDE = snapshot_path("wide_monthly.parquet")
 
 
 def main() -> int:

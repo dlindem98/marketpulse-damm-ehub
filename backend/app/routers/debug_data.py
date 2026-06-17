@@ -3,9 +3,9 @@ from pathlib import Path
 import polars as pl
 from fastapi import APIRouter, HTTPException, Query
 
-router = APIRouter(prefix="/api/debug", tags=["debug-data"])
+from app.paths import SNAPSHOTS_DIR
 
-SNAPSHOTS_DIR = Path(__file__).resolve().parents[1] / "data" / "snapshots"
+router = APIRouter(prefix="/api/debug", tags=["debug-data"])
 
 
 def _parquet_files() -> dict[str, Path]:

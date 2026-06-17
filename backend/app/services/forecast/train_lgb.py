@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import time
 import warnings
-from pathlib import Path
 
 import joblib
 import lightgbm as lgb
@@ -28,15 +27,13 @@ import numpy as np
 import polars as pl
 from category_encoders import TargetEncoder
 
+from app.paths import MODELS_DIR as MODELS, SNAPSHOTS_DIR as SNAPSHOTS, snapshot_path
 from app.services.forecast.conformal import calibrate
 from app.services.forecast.features import build_features, time_split
 
 warnings.filterwarnings("ignore", message="X does not have valid feature names")
 
-ROOT = Path(__file__).resolve().parents[3]
-WIDE = ROOT / "app" / "data" / "snapshots" / "wide_monthly.parquet"
-SNAPSHOTS = ROOT / "app" / "data" / "snapshots"
-MODELS = ROOT / "models"
+WIDE = snapshot_path("wide_monthly.parquet")
 MODELS.mkdir(parents=True, exist_ok=True)
 
 QUANTILES = {"p10": 0.1, "p50": 0.5, "p90": 0.9}
