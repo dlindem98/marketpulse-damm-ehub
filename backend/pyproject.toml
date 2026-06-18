@@ -16,6 +16,7 @@ dependencies = [
     "instructor>=1.15.1",
     "lightgbm>=4.6.0",
     "mlforecast>=1.0.31",
+    "numpy>=1.26.4,<2",
     "openpyxl>=3.1.5",
     "pandera>=0.31.1",
     "polars>=1.41.0",
