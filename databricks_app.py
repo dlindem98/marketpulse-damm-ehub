@@ -30,6 +30,20 @@ def _spawn(name: str, command: list[str], cwd: Path, env: dict[str, str]) -> sub
     return subprocess.Popen(command, cwd=cwd, env=env)
 
 
+def _ensure_python_deps(env: dict[str, str]) -> None:
+    try:
+        import uvicorn  # noqa: F401
+    except ModuleNotFoundError:
+        print("[marketpulse] Python deps missing; installing requirements.txt", flush=True)
+        install_env = env.copy()
+        install_env.setdefault("PIP_DISABLE_PIP_VERSION_CHECK", "1")
+        subprocess.check_call(
+            [PYTHON, "-m", "pip", "install", "-r", str(ROOT / "requirements.txt")],
+            cwd=ROOT,
+            env=install_env,
+        )
+
+
 def _wait_for_backend(timeout_seconds: int = 60) -> None:
     deadline = time.time() + timeout_seconds
     url = f"http://127.0.0.1:{BACKEND_PORT}/healthz"
@@ -49,6 +63,8 @@ def main() -> int:
     env.setdefault("NEXT_PUBLIC_API_URL", "/api")
     env.setdefault("HOSTNAME", "0.0.0.0")
     env.setdefault("PORT", APP_PORT)
+
+    _ensure_python_deps(env)
 
     backend = _spawn(
         "backend",
