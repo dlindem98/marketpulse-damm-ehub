@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.paths import SNAPSHOTS_DIR
+from app.paths import SNAPSHOTS_DIR, using_external_data_dir
 from app.routers import (
     aggregates,
     brief,
@@ -29,7 +29,19 @@ from app.routers import (
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # Cold-start: warm meta cache, verify snapshot dir exists, etc.
+    # Local dev can create the gitignored snapshot dir. In Databricks Apps the
+    # snapshot dir should come from a Unity Catalog Volume resource; don't try
+    # to create /Volumes from inside the app container.
+    if SNAPSHOTS_DIR.exists():
+        yield
+        return
+    if using_external_data_dir():
+        raise RuntimeError(
+            "Snapshot directory does not exist or is not accessible: "
+            f"{SNAPSHOTS_DIR}. Add the Unity Catalog volume as an App resource "
+            "and reference it with MARKETPULSE_VOLUME_DIR=valueFrom:<resource-key>, "
+            "or verify that the generated Parquet files exist under snapshots/."
+        )
     SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
     yield
 
