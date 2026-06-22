@@ -16,13 +16,12 @@ from __future__ import annotations
 
 import time
 from datetime import date, timedelta
-from pathlib import Path
 
 import httpx
 import polars as pl
 
-ROOT = Path(__file__).resolve().parents[2]
-CACHE = ROOT / "app" / "data" / "cache"
+from app.paths import CACHE_DIR as CACHE
+
 CACHE.mkdir(parents=True, exist_ok=True)
 
 

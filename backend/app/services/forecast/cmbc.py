@@ -23,7 +23,6 @@ Run with:  cd backend && uv run python -m app.services.forecast.cmbc
 from __future__ import annotations
 
 from datetime import date as date_t
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -31,9 +30,9 @@ import polars as pl
 from statsforecast import StatsForecast
 from statsforecast.models import AutoARIMA, SeasonalNaive
 
-ROOT = Path(__file__).resolve().parents[3]
-WIDE = ROOT / "app" / "data" / "snapshots" / "wide_monthly.parquet"
-SNAPSHOTS = ROOT / "app" / "data" / "snapshots"
+from app.paths import SNAPSHOTS_DIR as SNAPSHOTS, snapshot_path
+
+WIDE = snapshot_path("wide_monthly.parquet")
 
 CMBC_CHANNEL = "FREE TRADE CMBC"
 HORIZON = 9

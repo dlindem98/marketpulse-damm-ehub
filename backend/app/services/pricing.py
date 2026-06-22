@@ -26,9 +26,10 @@ from __future__ import annotations
 
 from datetime import date as date_t
 from functools import lru_cache
-from pathlib import Path
 
 import polars as pl
+
+from app.paths import snapshot_path
 
 # See docstring — multiplier applied to the source revenue values to get
 # a real GBP figure. Set conservatively from inspection of source data;
@@ -39,7 +40,7 @@ REVENUE_SCALE_TO_GBP = 1000.0
 # can decide whether to hide the £ figure entirely (preferred) or show this.
 DEFAULT_PRICE_FALLBACK: float | None = None
 
-WIDE = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "wide_monthly.parquet"
+WIDE = snapshot_path("wide_monthly.parquet")
 
 
 @lru_cache(maxsize=1)

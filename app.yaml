@@ -1,0 +1,13 @@
+command:
+  - bash
+  - start_databricks.sh
+
+env:
+  - name: API_URL
+    value: http://127.0.0.1:8001
+  - name: NEXT_PUBLIC_API_URL
+    value: /api
+  - name: MARKETPULSE_BACKEND_PORT
+    value: "8001"
+  - name: MARKETPULSE_VOLUME_DIR
+    valueFrom: volume

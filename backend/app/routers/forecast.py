@@ -2,11 +2,11 @@
 
 from datetime import date as date_t
 from functools import lru_cache
-from pathlib import Path
 
 import polars as pl
 from fastapi import APIRouter, HTTPException, Query
 
+from app.paths import snapshot_path
 from app.schemas import ForecastPoint, ForecastSeries
 from app.services.calendar import build_events
 from app.services.promo_windows import build_promo_windows
@@ -14,7 +14,7 @@ from app.services.weekly_split import MonthlyPoint, split_monthly_to_weekly
 
 router = APIRouter(prefix="/api", tags=["forecast"])
 
-FORECAST_PATH = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "forecast.parquet"
+FORECAST_PATH = snapshot_path("forecast.parquet")
 
 
 @lru_cache(maxsize=1)

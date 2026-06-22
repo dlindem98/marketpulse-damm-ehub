@@ -5,11 +5,12 @@ schema flow to the Next.js frontend via `make types` (see README).
 """
 
 from contextlib import asynccontextmanager
-from pathlib import Path
+import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.paths import SNAPSHOTS_DIR, using_external_data_dir
 from app.routers import (
     aggregates,
     brief,
@@ -27,12 +28,27 @@ from app.routers import (
     simulate,
 )
 
+log = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # Cold-start: warm meta cache, verify snapshot dir exists, etc.
-    snapshots = Path(__file__).parent / "data" / "snapshots"
-    snapshots.mkdir(parents=True, exist_ok=True)
+    # Local dev can create the gitignored snapshot dir. In Databricks Apps the
+    # snapshot dir should come from a Unity Catalog Volume resource; don't try
+    # to create /Volumes from inside the app container.
+    if SNAPSHOTS_DIR.exists():
+        yield
+        return
+    if using_external_data_dir():
+        log.warning(
+            "Snapshot directory does not exist or is not accessible: "
+            f"{SNAPSHOTS_DIR}. Add the Unity Catalog volume as an App resource "
+            "and reference it with MARKETPULSE_VOLUME_DIR=valueFrom:<resource-key>, "
+            "or verify that the generated Parquet files exist under snapshots/."
+        )
+        yield
+        return
+    SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
     yield
 
 

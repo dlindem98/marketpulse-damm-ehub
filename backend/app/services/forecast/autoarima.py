@@ -14,7 +14,6 @@ Run with:  cd backend && uv run python -m app.services.forecast.autoarima
 from __future__ import annotations
 
 import time
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -22,9 +21,9 @@ import polars as pl
 from statsforecast import StatsForecast
 from statsforecast.models import AutoARIMA, AutoETS
 
-ROOT = Path(__file__).resolve().parents[3]
-WIDE = ROOT / "app" / "data" / "snapshots" / "wide_monthly.parquet"
-SNAPSHOTS = ROOT / "app" / "data" / "snapshots"
+from app.paths import SNAPSHOTS_DIR as SNAPSHOTS, snapshot_path
+
+WIDE = snapshot_path("wide_monthly.parquet")
 
 HORIZON = 9            # Apr 2026 → Dec 2026 = 9 months
 TEST_WEEKS = 12        # mirror the LGB test split

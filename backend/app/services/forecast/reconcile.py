@@ -19,15 +19,14 @@ Writes: snapshots/forecast.parquet  (with `Hl_hat_p50_reconciled` column)
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import polars as pl
 
-ROOT = Path(__file__).resolve().parents[3]
-WIDE = ROOT / "app" / "data" / "snapshots" / "wide_monthly.parquet"
-FORECAST = ROOT / "app" / "data" / "snapshots" / "forecast.parquet"
+from app.paths import SNAPSHOTS_DIR, snapshot_path
+
+WIDE = snapshot_path("wide_monthly.parquet")
+FORECAST = snapshot_path("forecast.parquet")
 
 
 def main() -> int:
@@ -145,7 +144,7 @@ def main() -> int:
     print(f"        SalesChannel sums to Total                              ✓ max diff = {diff_total or 0:.6f}")
 
     print(f"\n[4/4] persisting hierarchy snapshots")
-    out_dir = ROOT / "app" / "data" / "snapshots"
+    out_dir = SNAPSHOTS_DIR
     levels["brand_subchannel"].write_parquet(out_dir / "forecast_by_brand_subchannel.parquet")
     levels["subchannel"].write_parquet(out_dir / "forecast_by_subchannel.parquet")
     levels["sales_channel"].write_parquet(out_dir / "forecast_by_sales_channel.parquet")

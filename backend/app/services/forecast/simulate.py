@@ -54,10 +54,10 @@ from __future__ import annotations
 
 import math
 from datetime import date as date_t
-from pathlib import Path
 
 import polars as pl
 
+from app.paths import snapshot_path
 from app.schemas import (
     ForecastPoint, ForecastSeries, SimulationRequest, SimulationResult,
 )
@@ -67,10 +67,9 @@ from app.services.calendar import (
 )
 from app.services.pricing import gross_price_per_hl
 
-ROOT = Path(__file__).resolve().parents[3]
-FORECAST = ROOT / "app" / "data" / "snapshots" / "forecast.parquet"
-TARGETS = ROOT / "app" / "data" / "snapshots" / "targets.parquet"
-PROMO_ROI = ROOT / "app" / "data" / "snapshots" / "promo_roi.parquet"
+FORECAST = snapshot_path("forecast.parquet")
+TARGETS = snapshot_path("targets.parquet")
+PROMO_ROI = snapshot_path("promo_roi.parquet")
 
 # Diminishing-returns scale for promo lift.
 LIFT_SCALE = 15.0

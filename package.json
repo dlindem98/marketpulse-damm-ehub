@@ -1,0 +1,9 @@
+{
+  "name": "marketpulse-databricks-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix web install && npm --prefix web run build",
+    "start": "bash start_databricks.sh"
+  }
+}

@@ -11,20 +11,18 @@ Writes: snapshots/mape.parquet
 from __future__ import annotations
 
 import warnings
-from pathlib import Path
 
 import lightgbm as lgb
 import numpy as np
 import polars as pl
 from category_encoders import TargetEncoder
 
+from app.paths import SNAPSHOTS_DIR as SNAPSHOTS, snapshot_path
 from app.services.forecast.features import build_features
 
 warnings.filterwarnings("ignore", message="X does not have valid feature names")
 
-ROOT = Path(__file__).resolve().parents[3]
-WIDE = ROOT / "app" / "data" / "snapshots" / "wide_monthly.parquet"
-SNAPSHOTS = ROOT / "app" / "data" / "snapshots"
+WIDE = snapshot_path("wide_monthly.parquet")
 N_FOLDS = 3
 HORIZON = 3
 

@@ -1,14 +1,14 @@
 import json
 from functools import lru_cache
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
+from app.paths import snapshot_path
 from app.schemas import MetaResponse
 
 router = APIRouter(prefix="/api", tags=["meta"])
 
-META_PATH = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "meta.json"
+META_PATH = snapshot_path("meta.json")
 
 
 @lru_cache(maxsize=1)

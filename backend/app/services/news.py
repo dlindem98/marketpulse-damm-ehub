@@ -34,20 +34,19 @@ import re
 import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
+from app.paths import BACKEND_ROOT, cache_path
 from app.schemas.news import NewsArticle
 
 # Load backend/.env on import. The CLI entrypoint `python -m app.jobs.refresh_news`
 # doesn't go through uvicorn, so the dotenv load that lives in services/llm.py
 # isn't triggered — without this line, TAVILY_API_KEY reads as empty even when
 # the value is sitting in backend/.env. Idempotent: re-loading is a no-op.
-_BACKEND_ROOT = Path(__file__).resolve().parents[2]
-load_dotenv(_BACKEND_ROOT / ".env")
+load_dotenv(BACKEND_ROOT / ".env")
 
 log = logging.getLogger(__name__)
 
@@ -56,7 +55,7 @@ log = logging.getLogger(__name__)
 # ──────────────────────────────────────────────────────────────────────────
 
 # Cache file lives alongside the other snapshots/cache dirs.
-CACHE_DIR = Path(__file__).resolve().parents[1] / "data" / "cache" / "news"
+CACHE_DIR = cache_path("news")
 CACHE_FILE = CACHE_DIR / "articles.json"
 
 # Three curated queries. Each one HAS to mention beer / lager / grocer

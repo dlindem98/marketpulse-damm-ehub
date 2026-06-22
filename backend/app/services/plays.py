@@ -22,14 +22,12 @@ from __future__ import annotations
 
 from datetime import date
 from functools import lru_cache
-from pathlib import Path
 
 import polars as pl
 
+from app.paths import SNAPSHOTS_DIR as SNAPSHOTS
 from app.schemas.plays import Play
 from app.services.calendar import build_events
-
-SNAPSHOTS = Path(__file__).resolve().parents[1] / "data" / "snapshots"
 
 # Per-month boost the simulator already applies for high-importance events.
 # Mirrored here so the gap-closer's discount sizing accounts for it (we
