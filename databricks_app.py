@@ -8,6 +8,7 @@ private backend through web/next.config.ts.
 from __future__ import annotations
 
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -20,6 +21,8 @@ BACKEND = ROOT / "backend"
 WEB = ROOT / "web"
 BACKEND_PORT = os.getenv("MARKETPULSE_BACKEND_PORT", "8000")
 APP_PORT = os.getenv("DATABRICKS_APP_PORT", "3000")
+PYTHON = str(Path(sys.executable).resolve())
+NPM = shutil.which("npm") or "npm"
 
 
 def _spawn(name: str, command: list[str], cwd: Path, env: dict[str, str]) -> subprocess.Popen:
@@ -50,7 +53,7 @@ def main() -> int:
     backend = _spawn(
         "backend",
         [
-            sys.executable,
+            PYTHON,
             "-m",
             "uvicorn",
             "app.main:app",
@@ -67,7 +70,7 @@ def main() -> int:
         _wait_for_backend()
         frontend = _spawn(
             "frontend",
-            ["npm", "run", "start", "--", "-p", APP_PORT, "-H", "0.0.0.0"],
+            [NPM, "run", "start", "--", "-p", APP_PORT, "-H", "0.0.0.0"],
             WEB,
             env,
         )
