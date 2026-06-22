@@ -21,9 +21,10 @@ BACKEND = ROOT / "backend"
 WEB = ROOT / "web"
 BACKEND_PORT = os.getenv("MARKETPULSE_BACKEND_PORT", "8000")
 APP_PORT = os.getenv("DATABRICKS_APP_PORT", "3000")
-PYTHON = str(Path(sys.executable).resolve())
+VENV_PYTHON = ROOT / ".venv" / "bin" / "python"
+PYTHON = str(VENV_PYTHON.resolve() if VENV_PYTHON.is_file() else Path(sys.executable).resolve())
 NPM = shutil.which("npm") or "npm"
-LAUNCHER_VERSION = "2026-06-22-runtime-deps-v2"
+LAUNCHER_VERSION = "2026-06-22-runtime-deps-v3"
 
 
 def _spawn(name: str, command: list[str], cwd: Path, env: dict[str, str]) -> subprocess.Popen:
@@ -32,9 +33,14 @@ def _spawn(name: str, command: list[str], cwd: Path, env: dict[str, str]) -> sub
 
 
 def _ensure_python_deps(env: dict[str, str]) -> None:
-    try:
-        import uvicorn  # noqa: F401
-    except ModuleNotFoundError:
+    probe = subprocess.run(
+        [PYTHON, "-c", "import uvicorn"],
+        cwd=ROOT,
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if probe.returncode != 0:
         print("[marketpulse] Python deps missing; installing requirements.txt", flush=True)
         install_env = env.copy()
         install_env.setdefault("PIP_DISABLE_PIP_VERSION_CHECK", "1")
