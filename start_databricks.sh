@@ -3,7 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-BACKEND_PORT="${MARKETPULSE_BACKEND_PORT:-8000}"
+BACKEND_PORT="${MARKETPULSE_BACKEND_PORT:-8001}"
 APP_PORT="${DATABRICKS_APP_PORT:-3000}"
 
 if [[ -n "${VIRTUAL_ENV:-}" && -x "${VIRTUAL_ENV}/bin/python" ]]; then

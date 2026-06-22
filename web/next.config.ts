@@ -1,6 +1,6 @@
 import type { NextConfig } from "next"
 
-const apiUrl = process.env.API_URL ?? "http://localhost:8000"
+const apiUrl = process.env.API_URL ?? "http://127.0.0.1:8001"
 
 const nextConfig: NextConfig = {
   // Proxy browser-side /api/* to the FastAPI backend so we keep a single origin
