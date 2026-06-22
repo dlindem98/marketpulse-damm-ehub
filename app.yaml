@@ -1,0 +1,17 @@
+command:
+  - python
+  - databricks_app.py
+
+env:
+  - name: API_URL
+    value: http://127.0.0.1:8000
+  - name: NEXT_PUBLIC_API_URL
+    value: /api
+  - name: MARKETPULSE_RAW_DIR
+    value: /Volumes/damm_bronze_des/marketpulse-uk/marketpulse-uk
+  - name: MARKETPULSE_SNAPSHOT_DIR
+    value: /Volumes/damm_bronze_des/marketpulse-uk/marketpulse-uk/snapshots
+  - name: MARKETPULSE_CACHE_DIR
+    value: /Volumes/damm_bronze_des/marketpulse-uk/marketpulse-uk/cache
+  - name: MARKETPULSE_MODELS_DIR
+    value: /Volumes/damm_bronze_des/marketpulse-uk/marketpulse-uk/models
