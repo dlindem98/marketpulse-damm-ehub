@@ -1,6 +1,7 @@
 command:
-  - python
-  - databricks_app.py
+  - bash
+  - -lc
+  - python -m pip install --disable-pip-version-check -r requirements.txt && python databricks_app.py
 
 env:
   - name: API_URL

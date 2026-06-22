@@ -23,6 +23,7 @@ BACKEND_PORT = os.getenv("MARKETPULSE_BACKEND_PORT", "8000")
 APP_PORT = os.getenv("DATABRICKS_APP_PORT", "3000")
 PYTHON = str(Path(sys.executable).resolve())
 NPM = shutil.which("npm") or "npm"
+LAUNCHER_VERSION = "2026-06-22-runtime-deps-v2"
 
 
 def _spawn(name: str, command: list[str], cwd: Path, env: dict[str, str]) -> subprocess.Popen:
@@ -58,6 +59,10 @@ def _wait_for_backend(timeout_seconds: int = 60) -> None:
 
 
 def main() -> int:
+    print(
+        f"[marketpulse] launcher {LAUNCHER_VERSION} python={PYTHON} root={ROOT}",
+        flush=True,
+    )
     env = os.environ.copy()
     env.setdefault("API_URL", f"http://127.0.0.1:{BACKEND_PORT}")
     env.setdefault("NEXT_PUBLIC_API_URL", "/api")

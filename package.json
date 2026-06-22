@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "npm --prefix web install && npm --prefix web run build",
+    "build": "python -m pip install --disable-pip-version-check -r requirements.txt && npm --prefix web install && npm --prefix web run build",
     "start": "python databricks_app.py"
   }
 }
