@@ -5,6 +5,8 @@ schema flow to the Next.js frontend via `make types` (see README).
 """
 
 from contextlib import asynccontextmanager
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -26,6 +28,8 @@ from app.routers import (
     simulate,
 )
 
+log = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -36,12 +40,14 @@ async def lifespan(_: FastAPI):
         yield
         return
     if using_external_data_dir():
-        raise RuntimeError(
+        log.warning(
             "Snapshot directory does not exist or is not accessible: "
             f"{SNAPSHOTS_DIR}. Add the Unity Catalog volume as an App resource "
             "and reference it with MARKETPULSE_VOLUME_DIR=valueFrom:<resource-key>, "
             "or verify that the generated Parquet files exist under snapshots/."
         )
+        yield
+        return
     SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
     yield
 
