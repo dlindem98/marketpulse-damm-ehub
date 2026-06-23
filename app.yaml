@@ -2,6 +2,13 @@ command:
   - bash
   - start_databricks.sh
 
+resources:
+  - name: volume
+    uc_securable:
+      securable_type: VOLUME
+      securable_full_name: damm_bronze_des.marketpulse-uk.marketpulse-uk
+      permission: READ_VOLUME
+
 env:
   - name: API_URL
     value: http://127.0.0.1:8001

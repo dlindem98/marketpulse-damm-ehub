@@ -27,12 +27,14 @@ from app.routers import (
     promos,
     simulate,
 )
+from app.services.databricks_volume import sync_volume_to_local_if_needed
 
 log = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    sync_volume_to_local_if_needed()
     # Local dev can create the gitignored snapshot dir. In Databricks Apps the
     # snapshot dir should come from a Unity Catalog Volume resource; don't try
     # to create /Volumes from inside the app container.
