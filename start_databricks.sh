@@ -24,14 +24,6 @@ echo "[marketpulse] python=${PYTHON}"
 echo "[marketpulse] backend_port=${BACKEND_PORT} app_port=${APP_PORT}"
 echo "[marketpulse] MARKETPULSE_VOLUME_DIR=${MARKETPULSE_VOLUME_DIR:-<unset>}"
 echo "[marketpulse] MARKETPULSE_SNAPSHOT_DIR=${MARKETPULSE_SNAPSHOT_DIR:-<unset>}"
-echo "[marketpulse] listing /Volumes (best effort)"
-ls -la /Volumes 2>&1 || true
-if [[ -n "${MARKETPULSE_VOLUME_DIR:-}" ]]; then
-  echo "[marketpulse] listing MARKETPULSE_VOLUME_DIR (best effort)"
-  ls -la "${MARKETPULSE_VOLUME_DIR}" 2>&1 || true
-  echo "[marketpulse] listing snapshots (best effort)"
-  ls -la "${MARKETPULSE_VOLUME_DIR}/snapshots" 2>&1 || true
-fi
 
 "${PYTHON}" - <<'PY'
 import sys
