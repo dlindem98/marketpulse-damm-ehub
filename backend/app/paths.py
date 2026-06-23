@@ -24,7 +24,13 @@ def _dir_from_env(name: str, default: Path) -> Path:
 
 
 _volume_value = os.getenv("MARKETPULSE_VOLUME_DIR")
-VOLUME_DIR = Path(_volume_value).expanduser() if _volume_value else None
+REMOTE_VOLUME_DIR = Path(_volume_value).expanduser() if _volume_value else None
+LOCAL_VOLUME_DIR = _dir_from_env(
+    "MARKETPULSE_LOCAL_VOLUME_DIR",
+    Path(os.getenv("TMPDIR", "/tmp")) / "marketpulse_volume",
+)
+USE_LOCAL_VOLUME_MIRROR = REMOTE_VOLUME_DIR is not None and not REMOTE_VOLUME_DIR.exists()
+VOLUME_DIR = LOCAL_VOLUME_DIR if USE_LOCAL_VOLUME_MIRROR else REMOTE_VOLUME_DIR
 
 RAW_DIR = _dir_from_env(
     "MARKETPULSE_RAW_DIR",
